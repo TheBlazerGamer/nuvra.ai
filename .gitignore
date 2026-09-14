@@ -1,0 +1,40 @@
+# Dependências
+node_modules/
+
+# Build
+dist/
+build/
+.next/
+out/
+
+# Ambiente
+.env
+.env.local
+.env.*.local
+
+# Prisma
+backend/prisma/migrations/dev.db*
+
+# Logs
+npm-debug.log*
+*.log
+
+# Editor/OS
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+
+# Testes/cobertura
+coverage/
+
+# Estado local
+.claude/scheduled_tasks.lock
+*.tsbuildinfo
+
+# PWA gerado
+frontend/public/sw.js
+frontend/public/workbox-*.js
+frontend/public/worker-*.js
+frontend/public/sw.js.map
+frontend/public/workbox-*.js.map

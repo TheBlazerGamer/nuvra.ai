@@ -1,0 +1,180 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum NomePlano {
+  BASICO
+  ESSENCIAL
+  PRO
+}
+
+enum StatusOnboarding {
+  PENDENTE
+  EM_ANDAMENTO
+  CONCLUIDO
+}
+
+enum TipoCriativo {
+  IMAGEM
+  VIDEO
+}
+
+enum ObjetivoCampanha {
+  RECONHECIMENTO
+  TRAFEGO
+  ENGAJAMENTO
+  LEADS
+  PROMOCAO_APP
+  VENDAS
+}
+
+enum DestinoConversa {
+  WHATSAPP
+  INSTAGRAM_DIRECT
+  MESSENGER
+}
+
+enum StatusPublicacao {
+  PENDENTE_ANALISE
+  AGUARDANDO_CHECAGEM_MANUAL
+  PUBLICANDO
+  PUBLICADA
+  ERRO
+  PAUSADA
+}
+
+model Plano {
+  id                    String   @id @default(uuid())
+  nome                  NomePlano @unique
+  limiteCriativosMes    Int
+  limiteCampanhasMes    Int
+  precoMensalCentavos   Int
+  taxaImplantacaoCentavos Int
+  criadoEm              DateTime @default(now())
+  atualizadoEm          DateTime @updatedAt
+
+  clientes              Cliente[]
+
+  @@map("planos")
+}
+
+model Cliente {
+  id                      String   @id @default(uuid())
+  nome                    String
+  email                   String   @unique
+  senhaHash               String
+  telefone                String?
+
+  planoId                 String
+  plano                   Plano    @relation(fields: [planoId], references: [id])
+
+  statusOnboarding        StatusOnboarding @default(PENDENTE)
+  metaBusinessManagerId   String?
+  metaContaAnuncioId      String?
+  metaPaginaId            String?
+  metaTetoChecagemCentavos Int?    // teto acima do qual aportes exigem checagem manual (definido pela Nuvra por cliente)
+
+  criativos               Criativo[]
+  campanhas               Campanha[]
+  relatoriosSemanais      RelatorioSemanal[]
+
+  criadoEm                DateTime @default(now())
+  atualizadoEm            DateTime @updatedAt
+
+  @@map("clientes")
+}
+
+model Criativo {
+  id              String       @id @default(uuid())
+  clienteId       String
+  cliente         Cliente      @relation(fields: [clienteId], references: [id])
+
+  tipo            TipoCriativo
+  urlArquivo      String       // URL no DigitalOcean Spaces
+  nomeArquivo     String
+  tamanhoBytes    Int
+
+  analiseIA       Json?        // resultado da análise do Claude: qualidade, apelo visual, adequação ao nicho, performance esperada
+  analisadoEm     DateTime?
+
+  campanhas       Campanha[]
+
+  criadoEm        DateTime     @default(now())
+
+  @@map("criativos")
+}
+
+model Campanha {
+  id                      String            @id @default(uuid())
+  clienteId               String
+  cliente                 Cliente           @relation(fields: [clienteId], references: [id])
+
+  criativoId              String
+  criativo                Criativo          @relation(fields: [criativoId], references: [id])
+
+  objetivo                ObjetivoCampanha
+  destinoConversa         DestinoConversa?  // usado apenas quando objetivo = ENGAJAMENTO e cliente quer gerar conversas
+
+  valorInvestidoCentavos  Int
+
+  publicoAlvo             Json              // definido pelo cliente ou sugerido/ajustado pela IA
+  posicionamento          Json?             // decidido pela IA: Feed, Reels, Stories etc.
+
+  statusPublicacao        StatusPublicacao  @default(PENDENTE_ANALISE)
+  requerChecagemManual    Boolean           @default(false)
+  checagemAprovadaPor     String?
+  checagemAprovadaEm      DateTime?
+
+  metaCampaignId          String?           // ID retornado pela Meta Marketing API
+  metaAdSetId             String?
+  metaAdId                String?
+  erroPublicacao          String?
+
+  resultados              ResultadoCampanha[]
+
+  criadoEm                DateTime          @default(now())
+  atualizadoEm            DateTime          @updatedAt
+  publicadoEm             DateTime?
+
+  @@map("campanhas")
+}
+
+model ResultadoCampanha {
+  id                  String    @id @default(uuid())
+  campanhaId          String
+  campanha            Campanha  @relation(fields: [campanhaId], references: [id])
+
+  semanaReferencia    DateTime  // segunda-feira da semana de referência
+
+  impressoes          Int       @default(0)
+  cliques             Int       @default(0)
+  gastoCentavos       Int       @default(0)
+  conversoes          Int       @default(0)
+  cpcCentavos         Int?
+  cpmCentavos         Int?
+  ctr                 Float?
+
+  dadosBrutosMeta     Json?     // payload bruto retornado pela Meta Marketing API
+
+  criadoEm            DateTime  @default(now())
+
+  @@unique([campanhaId, semanaReferencia])
+  @@map("resultados_campanha")
+}
+
+model RelatorioSemanal {
+  id                String   @id @default(uuid())
+  clienteId         String
+  cliente           Cliente  @relation(fields: [clienteId], references: [id])
+
+  semanaReferencia  DateTime
+  dadosConsolidados Json     // snapshot consolidado de todas as campanhas/resultados da semana
+  enviadoEm         DateTime @default(now())
+
+  @@unique([clienteId, semanaReferencia])
+  @@map("relatorios_semanais")
+}
