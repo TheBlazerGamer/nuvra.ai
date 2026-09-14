@@ -3,26 +3,26 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 
-export interface JwtPayload {
+export interface FuncionarioJwtPayload {
   sub: string;
   email: string;
-  tipo: 'cliente';
+  tipo: 'funcionario';
 }
 
 @Injectable()
-export class JwtStrategy extends PassportStrategy(Strategy) {
+export class FuncionarioJwtStrategy extends PassportStrategy(Strategy, 'jwt-funcionario') {
   constructor(configService: ConfigService) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: configService.getOrThrow<string>('JWT_SECRET'),
+      secretOrKey: configService.getOrThrow<string>('STAFF_JWT_SECRET'),
     });
   }
 
-  validate(payload: JwtPayload) {
-    if (payload.tipo !== 'cliente') {
+  validate(payload: FuncionarioJwtPayload) {
+    if (payload.tipo !== 'funcionario') {
       throw new UnauthorizedException('Token inválido para este contexto.');
     }
-    return { clienteId: payload.sub, email: payload.email };
+    return { funcionarioId: payload.sub, email: payload.email };
   }
 }

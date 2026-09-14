@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { CurrentCliente } from '../auth/current-cliente.decorator.js';
 import { CampanhasService } from './campanhas.service.js';
@@ -17,13 +17,5 @@ export class CampanhasController {
   @Post()
   criar(@CurrentCliente() cliente: { clienteId: string }, @Body() dto: CriarCampanhaDto) {
     return this.campanhasService.criar(cliente.clienteId, dto);
-  }
-
-  @Post(':id/aprovar-checagem')
-  aprovarChecagem(
-    @CurrentCliente() cliente: { clienteId: string; email: string },
-    @Param('id') campanhaId: string,
-  ) {
-    return this.campanhasService.aprovarChecagemManual(campanhaId, cliente.email);
   }
 }

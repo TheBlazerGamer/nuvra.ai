@@ -47,6 +47,23 @@ enum StatusPublicacao {
   PAUSADA
 }
 
+enum PapelFuncionario {
+  ADMIN
+}
+
+model Funcionario {
+  id           String           @id @default(uuid())
+  nome         String
+  email        String           @unique
+  senhaHash    String
+  papel        PapelFuncionario @default(ADMIN)
+
+  criadoEm     DateTime         @default(now())
+  atualizadoEm DateTime         @updatedAt
+
+  @@map("funcionarios")
+}
+
 model Plano {
   id                    String   @id @default(uuid())
   nome                  NomePlano @unique

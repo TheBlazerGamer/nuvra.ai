@@ -1,4 +1,5 @@
 import { PrismaClient, NomePlano } from '@prisma/client';
+import bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
@@ -38,6 +39,25 @@ async function main() {
       taxaImplantacaoCentavos: 0,
     },
   });
+
+  const adminEmail = process.env.ADMIN_EMAIL;
+  const adminSenha = process.env.ADMIN_SENHA;
+
+  if (adminEmail && adminSenha) {
+    const senhaHash = await bcrypt.hash(adminSenha, 10);
+    await prisma.funcionario.upsert({
+      where: { email: adminEmail },
+      update: {},
+      create: {
+        nome: process.env.ADMIN_NOME ?? 'Equipe Nuvra',
+        email: adminEmail,
+        senhaHash,
+      },
+    });
+    console.log(`Funcionário admin garantido: ${adminEmail}`);
+  } else {
+    console.log('ADMIN_EMAIL/ADMIN_SENHA não definidos — pulando criação do admin inicial.');
+  }
 }
 
 main()

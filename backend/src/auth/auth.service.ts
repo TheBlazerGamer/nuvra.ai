@@ -53,7 +53,7 @@ export class AuthService {
   }
 
   private gerarToken(clienteId: string, email: string) {
-    const accessToken = this.jwtService.sign({ sub: clienteId, email });
+    const accessToken = this.jwtService.sign({ sub: clienteId, email, tipo: 'cliente' });
     return { accessToken };
   }
 }

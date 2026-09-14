@@ -12,6 +12,8 @@ import { MetaAdsModule } from './meta-ads/meta-ads.module.js';
 import { CriativosModule } from './criativos/criativos.module.js';
 import { CampanhasModule } from './campanhas/campanhas.module.js';
 import { RelatoriosModule } from './relatorios/relatorios.module.js';
+import { FuncionariosModule } from './funcionarios/funcionarios.module.js';
+import { AdminModule } from './admin/admin.module.js';
 
 @Module({
   imports: [
@@ -26,6 +28,8 @@ import { RelatoriosModule } from './relatorios/relatorios.module.js';
     CriativosModule,
     CampanhasModule,
     RelatoriosModule,
+    FuncionariosModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [AppService],

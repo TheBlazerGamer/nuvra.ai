@@ -30,15 +30,17 @@ A API sobe em `http://localhost:3001`.
 
 ### Variáveis de ambiente (`backend/.env`)
 
-Ver [.env.example](./backend/.env.example) para a lista completa: `DATABASE_URL`, `JWT_SECRET`, credenciais do DigitalOcean Spaces, `ANTHROPIC_API_KEY`, credenciais da Meta Marketing API e `N8N_WEBHOOK_SECRET` (usado pelo n8n para disparar a geração do relatório semanal via `POST /relatorios/gerar-semana`).
+Ver [.env.example](./backend/.env.example) para a lista completa: `DATABASE_URL`, `JWT_SECRET` (clientes), `STAFF_JWT_SECRET` (equipe Nuvra — segredo separado de propósito), credenciais do DigitalOcean Spaces, `ANTHROPIC_API_KEY`, credenciais da Meta Marketing API, `N8N_WEBHOOK_SECRET` (usado pelo n8n para disparar a geração do relatório semanal via `POST /relatorios/gerar-semana`) e `ADMIN_EMAIL`/`ADMIN_SENHA`/`ADMIN_NOME` (opcional — se preenchidos, `npm run prisma:seed` cria o primeiro usuário admin).
 
 ### Módulos principais
 
-- `auth` — cadastro/login (JWT)
-- `clientes` — perfil, vínculo da conta Meta (onboarding), teto de checagem manual
+- `auth` — cadastro/login do cliente (JWT)
+- `funcionarios` — login da equipe Nuvra (JWT com segredo próprio, `STAFF_JWT_SECRET`); não há cadastro público, o primeiro admin nasce pelo seed
+- `admin` — endpoints exclusivos da equipe Nuvra (guardados por `FuncionarioAuthGuard`): vínculo da conta Meta do cliente (onboarding), teto de checagem manual e aprovação de aportes acima do teto
+- `clientes` — perfil e uso mensal do próprio cliente (somente leitura)
 - `planos` — Básico / Essencial / Pró (limites de criativos e campanhas por mês)
 - `criativos` — upload (DigitalOcean Spaces) e análise por IA (Claude)
-- `campanhas` — criação e publicação autônoma via Meta Marketing API, com checagem manual para aportes acima do teto do cliente
+- `campanhas` — criação pelo cliente e publicação autônoma via Meta Marketing API; aportes acima do teto ficam `AGUARDANDO_CHECAGEM_MANUAL` até a equipe Nuvra aprovar em `POST /admin/campanhas/:id/aprovar-checagem`
 - `relatorios` — geração do relatório semanal (dados da Meta Marketing API)
 
 ## Frontend
@@ -54,8 +56,7 @@ O app sobe em `http://localhost:3000`. É um PWA instalável (manifest + service
 
 ## Pontos em aberto antes de produção
 
-- **Checagem manual de aportes acima do teto**: hoje o endpoint `POST /campanhas/:id/aprovar-checagem` é acessível pelo próprio cliente autenticado. Antes de ir para produção, criar um papel de "equipe Nuvra" (admin) separado do cliente, já que essa aprovação deveria ser feita pela Nuvra, não pelo cliente.
-- **Onboarding** (vínculo do Business Manager, conta de anúncio e Página do Facebook) também está exposto como endpoint do cliente (`PATCH /clientes/me/conta-meta`); no fluxo real é a Nuvra quem faz isso uma única vez por cliente — vale mover para um painel interno/admin.
+- **Painel interno para a equipe Nuvra**: os endpoints `/admin/*` (onboarding e aprovação de checagem manual) existem e estão protegidos, mas ainda não há uma tela — hoje só podem ser chamados diretamente pela API (ex: Postman/Insomnia) usando o token retornado por `POST /funcionarios/login`.
 - **Preços dos planos**: os valores de mensalidade e taxa de implantação estão zerados no seed (`backend/prisma/seed.ts`) — defina os valores reais antes de abrir para clientes.
 - **Testes com credenciais reais da Meta Marketing API**: a integração (`backend/src/meta-ads`) foi implementada conforme a documentação da Graph API v21.0, mas não foi testada contra uma conta de anúncio real — validar especialmente upload de vídeo, criação de creative e ativação de campanha.
 - **Relatório semanal automático**: o endpoint existe (`POST /relatorios/gerar-semana`), mas o agendamento (toda segunda-feira) e o layout visual do relatório dentro da plataforma ainda precisam ser implementados — hoje ele só persiste os dados consolidados.
