@@ -32,9 +32,15 @@ coverage/
 .claude/scheduled_tasks.lock
 *.tsbuildinfo
 
+# Dados sensíveis de clientes (IDs de contas de anúncio reais)
+raio-x-criativo/scripts/mapeamento-nichos.json
+
 # PWA gerado
 frontend/public/sw.js
 frontend/public/workbox-*.js
 frontend/public/worker-*.js
 frontend/public/sw.js.map
 frontend/public/workbox-*.js.map
+
+# Banco de desenvolvimento local (Postgres embutido)
+backend/.pgdata/

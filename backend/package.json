@@ -19,11 +19,11 @@
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
     "test:debug": "vitest --inspect-brk --no-file-parallelism",
-    "test:e2e": "vitest run --config ./vitest.config.e2e.ts",
+    "test:db": "vitest run --config ./vitest.config.db.ts",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
-    "prisma:seed": "tsx prisma/seed.ts",
-    "prisma:studio": "prisma studio"
+    "db:dev": "tsx scripts/dev-db.ts",
+    "db:migrate": "prisma migrate deploy",
+    "db:provision": "tsx scripts/provisionar-papeis.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.125.0",
@@ -62,6 +62,7 @@
     "@types/supertest": "^7.0.0",
     "@types/uuid": "^10.0.0",
     "@vitest/coverage-v8": "^4.1.2",
+    "embedded-postgres": "^17.10.0-beta.17",
     "oxlint": "^1.58.0",
     "oxlint-tsgolint": "^7.0.2001",
     "prettier": "^3.4.2",
@@ -77,6 +78,7 @@
     "@prisma/engines@7.10.0": true,
     "bcrypt@6.0.0": true,
     "esbuild@0.28.2": true,
-    "prisma@7.10.0": true
+    "prisma@7.10.0": true,
+    "@embedded-postgres/windows-x64@17.10.0-beta.17": true
   }
 }
