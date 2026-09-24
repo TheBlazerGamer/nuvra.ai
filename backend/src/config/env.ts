@@ -29,11 +29,11 @@ export function validarAmbiente(config: Record<string, unknown>): Record<string,
     }
   }
 
-  if (config.NODE_ENV === 'production') {
-    const origem = config.WEB_ORIGIN;
-    if (typeof origem !== 'string' || !origem.startsWith('https://')) {
-      erros.push('WEB_ORIGIN deve ser uma origem https:// em produção.');
-    }
+  const origem = config.WEB_ORIGIN;
+  if (typeof origem !== 'string' || origem.length === 0) {
+    erros.push('WEB_ORIGIN não está definida (origem do site, usada em CORS e na checagem anti-CSRF).');
+  } else if (config.NODE_ENV === 'production' && !origem.startsWith('https://')) {
+    erros.push('WEB_ORIGIN deve ser uma origem https:// em produção.');
   }
 
   if (erros.length > 0) {

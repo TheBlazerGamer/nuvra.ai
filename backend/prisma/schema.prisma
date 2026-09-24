@@ -18,6 +18,7 @@ model Cliente {
   email        String        @unique
   senhaHash    String        @map("senha_hash")
   status       StatusCliente @default(ATIVO)
+  bloqueadoAte DateTime?     @map("bloqueado_ate") @db.Timestamptz(6)
   criadoEm     DateTime      @default(now()) @map("criado_em") @db.Timestamptz(6)
   atualizadoEm DateTime      @updatedAt @map("atualizado_em") @db.Timestamptz(6)
 

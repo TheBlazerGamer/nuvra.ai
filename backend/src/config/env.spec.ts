@@ -3,6 +3,7 @@ import { validarAmbiente } from './env.js';
 const base = {
   DB_APP_URL: 'postgresql://nuvra_app:senha@127.0.0.1:5432/nuvra',
   DB_SYSTEM_URL: 'postgresql://nuvra_system:senha@127.0.0.1:5432/nuvra',
+  WEB_ORIGIN: 'http://localhost:3000',
 };
 
 describe('validarAmbiente', () => {
@@ -17,7 +18,13 @@ describe('validarAmbiente', () => {
   });
 
   it('recusa variáveis ausentes', () => {
-    expect(() => validarAmbiente({ DB_APP_URL: base.DB_APP_URL })).toThrow(/DB_SYSTEM_URL/);
+    expect(() => validarAmbiente({ DB_APP_URL: base.DB_APP_URL, WEB_ORIGIN: base.WEB_ORIGIN })).toThrow(
+      /DB_SYSTEM_URL/,
+    );
+  });
+
+  it('exige WEB_ORIGIN (sem ela a checagem anti-CSRF ficaria aberta)', () => {
+    expect(() => validarAmbiente({ ...base, WEB_ORIGIN: undefined })).toThrow(/WEB_ORIGIN/);
   });
 
   it('em produção exige WEB_ORIGIN em https', () => {

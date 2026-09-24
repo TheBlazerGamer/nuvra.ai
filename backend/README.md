@@ -25,6 +25,16 @@ Testes: `npm test` (unitários) e `npm run test:db` (sobe um Postgres descartáv
 - Tabela nova de cliente = coluna `cliente_id` + `ENABLE/FORCE ROW LEVEL SECURITY` + políticas + `GRANT` por coluna, tudo explícito. Nada é liberado por padrão.
 - Consultas do papel `nuvra_app` devem usar `select` explícito (colunas sem permissão falham de propósito).
 
+## Autenticação (`src/auth`)
+
+- Sessão em **cookie `httpOnly` + `SameSite=Lax`** (`__Host-` e `Secure` em produção). O navegador guarda um token aleatório; o banco guarda só o SHA-256 dele. Expira em 7 dias sem uso (máx. 30 dias) e é revogada no logout.
+- Senha com **Argon2id** (mín. 12, máx. 128 caracteres). E-mail inexistente e senha errada dão a mesma resposta, no mesmo tempo.
+- **Força bruta:** 5 senhas erradas em 15 min bloqueiam a conta por 15 min; além disso há limite de requisições por IP (`AUTH_RATE_LIMIT_PER_MIN`).
+- **CSRF:** toda requisição que altera dados precisa vir da origem `WEB_ORIGIN` ([origem.guard.ts](src/auth/origem.guard.ts)). Rotas chamadas por servidores (webhook do Telegram) usam `@PermitirSemOrigem()` e devem ter autenticação própria.
+- Eventos (`cadastro`, `login_ok`, `login_falha`, `conta_bloqueada`, `logout`...) vão para `eventos_auditoria`, sem senha nem token.
+- Rota protegida: `@UseGuards(SessaoGuard)` + `@ClienteAtual()`; dados do cliente sempre via `PrismaTenantService.comTenant`.
+- Testes: `npm run test:db` ataca a API real (força bruta, CSRF, sessão expirada/revogada, campos extras, vazamento em auditoria).
+
 ## Código anterior
 
 `legacy/` guarda os módulos da versão 1 apenas como referência (não compila nem executa). Ver [legacy/README.md](legacy/README.md).

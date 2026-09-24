@@ -1,28 +1,15 @@
-import { randomBytes } from 'node:crypto';
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
-import EmbeddedPostgres from 'embedded-postgres';
-import pg from 'pg';
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaSystemService } from '../src/database/prisma-system.service.js';
 import { PrismaTenantService } from '../src/database/prisma-tenant.service.js';
-import { provisionarPapeis } from '../scripts/lib/provisionar-papeis.js';
+import { iniciarBancoDeTeste } from './helpers/banco-de-teste.js';
 
-// Sobe um Postgres real e descartável, aplica as migrations de verdade e tenta VIOLAR o isolamento
-// entre clientes usando exatamente os papéis que a API usa em produção.
+// Usa um Postgres real e descartável e tenta VIOLAR o isolamento entre clientes
+// com exatamente os papéis que a API usa em produção.
 
 const PORTA = 54390;
-const BANCO = 'nuvra_teste';
-const senhaAleatoria = () => randomBytes(16).toString('hex');
 
-const senhas = { owner: senhaAleatoria(), app: senhaAleatoria(), system: senhaAleatoria() };
-const url = (usuario: string, senha: string) =>
-  `postgresql://${usuario}:${senha}@127.0.0.1:${PORTA}/${BANCO}`;
-
-let servidor: EmbeddedPostgres;
-let pasta: string;
+let banco: Awaited<ReturnType<typeof iniciarBancoDeTeste>>;
 let system: PrismaSystemService;
 let tenant: PrismaTenantService;
 let semContexto: PrismaClient;
@@ -34,44 +21,12 @@ let sessaoB: { id: string };
 const daqui1h = () => new Date(Date.now() + 3_600_000);
 
 beforeAll(async () => {
-  pasta = mkdtempSync(join(tmpdir(), 'nuvra-pg-'));
-  servidor = new EmbeddedPostgres({
-    databaseDir: pasta,
-    user: 'nuvra_owner',
-    password: senhas.owner,
-    port: PORTA,
-    authMethod: 'scram-sha-256',
-    persistent: false,
-    postgresFlags: ['-c', 'listen_addresses=127.0.0.1'],
-    onLog: () => {},
-    onError: () => {},
-  });
-  await servidor.initialise();
-  await servidor.start();
-  await servidor.createDatabase(BANCO);
+  banco = await iniciarBancoDeTeste(PORTA);
 
-  const ownerUrl = url('nuvra_owner', senhas.owner);
-  const owner = new pg.Client({ connectionString: ownerUrl });
-  await owner.connect();
-  const raiz = resolve('prisma/migrations');
-  for (const nome of readdirSync(raiz).filter((n) => /^\d+_/.test(n)).sort()) {
-    await owner.query(readFileSync(join(raiz, nome, 'migration.sql'), 'utf-8'));
-  }
-  await owner.end();
-
-  await provisionarPapeis({
-    ownerUrl,
-    banco: BANCO,
-    senhaApp: senhas.app,
-    senhaSystem: senhas.system,
-  });
-
-  system = new PrismaSystemService(url('nuvra_system', senhas.system));
+  system = new PrismaSystemService(banco.urls.system);
   await system.$connect();
-  tenant = new PrismaTenantService(url('nuvra_app', senhas.app));
-  semContexto = new PrismaClient({
-    adapter: new PrismaPg({ connectionString: url('nuvra_app', senhas.app) }),
-  });
+  tenant = new PrismaTenantService(banco.urls.app);
+  semContexto = new PrismaClient({ adapter: new PrismaPg({ connectionString: banco.urls.app }) });
 
   clienteA = await system.cliente.create({
     data: { nome: 'Cliente A', email: 'a@exemplo.com', senhaHash: 'hash-a' },
@@ -96,8 +51,7 @@ afterAll(async () => {
   await semContexto?.$disconnect();
   await tenant?.onModuleDestroy();
   await system?.$disconnect();
-  await servidor?.stop();
-  if (pasta) rmSync(pasta, { recursive: true, force: true });
+  await banco?.parar();
 }, 60_000);
 
 describe('isolamento entre clientes (Row Level Security)', () => {
