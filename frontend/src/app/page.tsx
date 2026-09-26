@@ -1,5 +1,11 @@
 import Link from "next/link";
 
+const LINKS_LEGAIS = [
+  { href: "/privacidade", texto: "Privacidade" },
+  { href: "/termos", texto: "Termos de uso" },
+  { href: "/exclusao-de-dados", texto: "Exclusão de dados" },
+];
+
 export default function PaginaInicial() {
   return (
     <main className="flex-1 flex flex-col items-center justify-center bg-nuvra-navy text-center px-4">
@@ -21,6 +27,14 @@ export default function PaginaInicial() {
           Criar conta
         </Link>
       </div>
+
+      <nav aria-label="Documentos legais" className="mt-16 flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm">
+        {LINKS_LEGAIS.map((l) => (
+          <Link key={l.href} href={l.href} className="text-white/50 hover:text-white">
+            {l.texto}
+          </Link>
+        ))}
+      </nav>
     </main>
   );
 }

@@ -55,7 +55,8 @@ Mesmo operando por conversa (Telegram, depois WhatsApp), o cliente precisa de um
 ## 5. Modelo comercial, considerações de precificação
 
 - Estrutura de planos por volume de criativos e campanhas por mês (Básico, Essencial, Pró)
-- **(v2.1)** **Sem taxa de implantação em nenhum plano.** Preços a definir (ver proposta na conversa de 2026-09-25); considerar teste de 7 dias com reembolso
+- **(v2.1)** **Sem taxa de implantação em nenhum plano.** Preços decididos em 2026-09-26 ("opção A", entrada agressiva): **Básico R$97, Essencial R$197, Pró R$397 por mês**; considerar teste de 7 dias com reembolso
+- **(v2.1)** O público é leigo: os planos **não** variam por "contas de anúncio" (o cliente nem sabe o que é). Eixos propostos, em validação: (1) anúncios novos por mês, (2) quanto o cliente investe por mês em anúncios (verba gerenciada, que casa com o limite da carteira), (3) nível de acompanhamento humano (o plano Pró inclui revisão mensal com um gestor da Nuvra). A inteligência por nicho e a análise de criativo valem para todos os planos. Faixas de verba a calibrar com os gastos reais dos clientes atuais
 - **(v2.1)** A segunda dimensão de precificação por canal (web vs. chat) fica em reavaliação: com Telegram gratuito no início, os planos não precisam se diferenciar por canal; o custo de mensageria do WhatsApp entra na precificação na migração
 
 ## 6. Ordem de desenvolvimento recomendada
