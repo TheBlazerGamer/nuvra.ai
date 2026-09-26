@@ -124,6 +124,37 @@ describe('isolamento entre clientes (Row Level Security)', () => {
     ).rejects.toThrow(/permission denied/i);
   });
 
+  it('o papel da API não enxerga nem cria tokens de e-mail (verificação e recuperação de senha)', async () => {
+    await system.tokenEmail.create({
+      data: { clienteId: clienteA.id, tipo: 'RECUPERACAO_SENHA', tokenHash: 'hash-recuperacao-a', expiraEm: daqui1h() },
+    });
+
+    await expect(
+      tenant.comTenant(clienteA.id, (tx) => tx.tokenEmail.findMany({ select: { id: true } })),
+    ).rejects.toThrow(/permission denied/i);
+    await expect(
+      tenant.comTenant(clienteA.id, (tx) =>
+        tx.tokenEmail.create({
+          data: { clienteId: clienteA.id, tipo: 'RECUPERACAO_SENHA', tokenHash: 'forjado-2', expiraEm: daqui1h() },
+          select: { id: true },
+        }),
+      ),
+    ).rejects.toThrow(/permission denied/i);
+  });
+
+  it('o cliente vê o próprio status de verificação de e-mail, mas não o bloqueio de login', async () => {
+    const proprio = await tenant.comTenant(clienteA.id, (tx) =>
+      tx.cliente.findUniqueOrThrow({ where: { id: clienteA.id }, select: { emailVerificadoEm: true } }),
+    );
+    expect(proprio.emailVerificadoEm).toBeNull();
+
+    await expect(
+      tenant.comTenant(clienteA.id, (tx) =>
+        tx.cliente.findUniqueOrThrow({ where: { id: clienteA.id }, select: { bloqueadoAte: true } }),
+      ),
+    ).rejects.toThrow(/permission denied/i);
+  });
+
   it('o papel da API não apaga registros nem lê a trilha de auditoria', async () => {
     await expect(
       tenant.comTenant(clienteA.id, (tx) => tx.sessao.deleteMany({})),

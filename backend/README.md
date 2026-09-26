@@ -28,7 +28,12 @@ Testes: `npm test` (unitários) e `npm run test:db` (sobe um Postgres descartáv
 ## Autenticação (`src/auth`)
 
 - Sessão em **cookie `httpOnly` + `SameSite=Lax`** (`__Host-` e `Secure` em produção). O navegador guarda um token aleatório; o banco guarda só o SHA-256 dele. Expira em 7 dias sem uso (máx. 30 dias) e é revogada no logout.
-- Senha com **Argon2id** (mín. 12, máx. 128 caracteres). E-mail inexistente e senha errada dão a mesma resposta, no mesmo tempo.
+- Senha com **Argon2id** (mín. 12, máx. 128 caracteres) e checagem contra **senhas vazadas** (Have I Been Pwned por k-anonimato: só 5 caracteres do hash saem do servidor; fora do ar = segue sem a checagem). E-mail inexistente e senha errada dão a mesma resposta, no mesmo tempo.
+- **Cadastro sem enumeração:** responde `202` igual exista ou não a conta e não abre sessão; a pessoa confirma o e-mail e entra. E-mail já cadastrado recebe um aviso, sem revelar nada ao formulário.
+- **Verificação de e-mail e recuperação de senha:** links de uso único (atômico), com hash no banco, expiração (24 h / 1 h), token no fragmento `#token=` (nunca vai a logs nem ao Referer), máx. 3 e-mails/hora por conta. Redefinir derruba **todas** as sessões e avisa por e-mail. Recursos sensíveis usam `@UseGuards(SessaoGuard, EmailVerificadoGuard)`.
+- **Contas:** trocar senha exige a senha atual (erros contam para o bloqueio, contra sessão roubada), derruba os outros dispositivos; `GET /auth/sessoes`, `DELETE /auth/sessoes/:id` e `POST /auth/sessoes/encerrar-outras` gerenciam dispositivos.
+- **E-mail:** `EMAIL_TRANSPORT=arquivo` em desenvolvimento (grava em `.emails-dev/`); em produção o servidor só sobe com SMTP configurado.
+- Respostas de `/auth/*` com `Cache-Control: no-store`; corpo de requisição limitado a 20 kb; `helmet` ativo.
 - **Força bruta:** 5 senhas erradas em 15 min bloqueiam a conta por 15 min; além disso há limite de requisições por IP (`AUTH_RATE_LIMIT_PER_MIN`).
 - **CSRF:** toda requisição que altera dados precisa vir da origem `WEB_ORIGIN` ([origem.guard.ts](src/auth/origem.guard.ts)). Rotas chamadas por servidores (webhook do Telegram) usam `@PermitirSemOrigem()` e devem ter autenticação própria.
 - Eventos (`cadastro`, `login_ok`, `login_falha`, `conta_bloqueada`, `logout`...) vão para `eventos_auditoria`, sem senha nem token.

@@ -31,7 +31,7 @@ export class SessaoService {
     return { token, expiraEm };
   }
 
-  async validar(token: string): Promise<{ clienteId: string } | null> {
+  async validar(token: string): Promise<{ clienteId: string; sessaoId: string } | null> {
     if (!token || token.length > 200) return null;
 
     const sessao = await this.system.sessao.findUnique({
@@ -70,7 +70,7 @@ export class SessaoService {
       });
     }
 
-    return { clienteId: sessao.clienteId };
+    return { clienteId: sessao.clienteId, sessaoId: sessao.id };
   }
 
   async revogar(token: string): Promise<void> {

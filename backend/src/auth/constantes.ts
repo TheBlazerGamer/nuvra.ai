@@ -9,4 +9,7 @@ export const SESSAO_DURACAO_MAXIMA_MS = 30 * DIA_MS;
 export const MAX_TENTATIVAS_LOGIN = 5;
 export const BLOQUEIO_LOGIN_MS = 15 * 60 * 1000;
 
+// Quantos e-mails de verificação / recuperação por conta por hora (evita usar a Nuvra para spam).
+export const MAX_EMAILS_POR_HORA = 3;
+
 export const LIMITE_AUTH_POR_MINUTO = Number(process.env.AUTH_RATE_LIMIT_PER_MIN ?? 10);

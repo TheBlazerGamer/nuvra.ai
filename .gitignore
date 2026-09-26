@@ -44,3 +44,6 @@ frontend/public/workbox-*.js.map
 
 # Banco de desenvolvimento local (Postgres embutido)
 backend/.pgdata/
+
+# E-mails de desenvolvimento (contêm links com token)
+backend/.emails-dev/

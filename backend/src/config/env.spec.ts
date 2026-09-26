@@ -27,12 +27,28 @@ describe('validarAmbiente', () => {
     expect(() => validarAmbiente({ ...base, WEB_ORIGIN: undefined })).toThrow(/WEB_ORIGIN/);
   });
 
+  const producao = {
+    ...base,
+    NODE_ENV: 'production',
+    WEB_ORIGIN: 'https://app.exemplo.com',
+    EMAIL_TRANSPORT: 'smtp',
+    SMTP_HOST: 'smtp.exemplo.com',
+    SMTP_USER: 'usuario',
+    SMTP_PASS: 'senha',
+    EMAIL_FROM: 'Nuvra.AI <nao-responda@exemplo.com>',
+  };
+
   it('em produção exige WEB_ORIGIN em https', () => {
-    expect(() =>
-      validarAmbiente({ ...base, NODE_ENV: 'production', WEB_ORIGIN: 'http://app.exemplo.com' }),
-    ).toThrow(/https/);
-    expect(() =>
-      validarAmbiente({ ...base, NODE_ENV: 'production', WEB_ORIGIN: 'https://app.exemplo.com' }),
-    ).not.toThrow();
+    expect(() => validarAmbiente({ ...producao, WEB_ORIGIN: 'http://app.exemplo.com' })).toThrow(/https/);
+    expect(() => validarAmbiente(producao)).not.toThrow();
+  });
+
+  it('em produção exige e-mail real por SMTP (o transporte de arquivo é só de desenvolvimento)', () => {
+    expect(() => validarAmbiente({ ...producao, EMAIL_TRANSPORT: 'arquivo' })).toThrow(/smtp/);
+    expect(() => validarAmbiente({ ...producao, SMTP_PASS: undefined })).toThrow(/SMTP_PASS/);
+  });
+
+  it('em produção não deixa desligar a checagem de senhas vazadas', () => {
+    expect(() => validarAmbiente({ ...producao, SENHAS_VAZADAS: 'desligado' })).toThrow(/SENHAS_VAZADAS/);
   });
 });

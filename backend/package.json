@@ -23,7 +23,8 @@
     "prisma:generate": "prisma generate",
     "db:dev": "tsx scripts/dev-db.ts",
     "db:migrate": "prisma migrate deploy",
-    "db:provision": "tsx scripts/provisionar-papeis.ts"
+    "db:provision": "tsx scripts/provisionar-papeis.ts",
+    "email:teste": "tsx scripts/enviar-email-teste.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.125.0",
@@ -42,6 +43,7 @@
     "cookie-parser": "^1.4.7",
     "dotenv": "^17.4.2",
     "helmet": "^8.3.0",
+    "nodemailer": "^10.0.10",
     "pg": "^8.23.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1"
@@ -54,6 +56,7 @@
     "@types/cookie-parser": "^1.4.10",
     "@types/express": "^5.0.0",
     "@types/node": "^24.0.0",
+    "@types/nodemailer": "^8.0.2",
     "@types/pg": "^8.23.1",
     "@types/supertest": "^7.0.0",
     "@vitest/coverage-v8": "^4.1.2",

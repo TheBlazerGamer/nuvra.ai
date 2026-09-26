@@ -3,7 +3,7 @@ import type { Request } from 'express';
 import { COOKIE_SESSAO } from './constantes.js';
 import { SessaoService } from './sessao.service.js';
 
-export type RequisicaoAutenticada = Request & { clienteId: string };
+export type RequisicaoAutenticada = Request & { clienteId: string; sessaoId: string };
 
 @Injectable()
 export class SessaoGuard implements CanActivate {
@@ -19,6 +19,7 @@ export class SessaoGuard implements CanActivate {
     }
 
     req.clienteId = sessao.clienteId;
+    req.sessaoId = sessao.sessaoId;
     return true;
   }
 }

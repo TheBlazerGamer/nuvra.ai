@@ -19,12 +19,14 @@ model Cliente {
   senhaHash    String        @map("senha_hash")
   status       StatusCliente @default(ATIVO)
   bloqueadoAte DateTime?     @map("bloqueado_ate") @db.Timestamptz(6)
+  emailVerificadoEm DateTime? @map("email_verificado_em") @db.Timestamptz(6)
   criadoEm     DateTime      @default(now()) @map("criado_em") @db.Timestamptz(6)
   atualizadoEm DateTime      @updatedAt @map("atualizado_em") @db.Timestamptz(6)
 
   sessoes        Sessao[]
   vinculoTelegram VinculoTelegram?
   tokensVinculo  TokenVinculoTelegram[]
+  tokensEmail    TokenEmail[]
   auditoria      EventoAuditoria[]
 
   @@map("clientes")
@@ -87,4 +89,25 @@ model EventoAuditoria {
   @@index([clienteId, criadoEm])
   @@index([tipo, criadoEm])
   @@map("eventos_auditoria")
+}
+
+enum TipoTokenEmail {
+  VERIFICACAO_EMAIL
+  RECUPERACAO_SENHA
+}
+
+// Uso único: guardamos só o hash; o token em si só existe no e-mail enviado ao cliente.
+model TokenEmail {
+  id        String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clienteId String         @map("cliente_id") @db.Uuid
+  tipo      TipoTokenEmail
+  tokenHash String         @unique @map("token_hash")
+  criadoEm  DateTime       @default(now()) @map("criado_em") @db.Timestamptz(6)
+  expiraEm  DateTime       @map("expira_em") @db.Timestamptz(6)
+  usadoEm   DateTime?      @map("usado_em") @db.Timestamptz(6)
+
+  cliente Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@index([clienteId, tipo, criadoEm])
+  @@map("tokens_email")
 }

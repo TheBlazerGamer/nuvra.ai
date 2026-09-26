@@ -1,6 +1,7 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import cookieParser from 'cookie-parser';
+import type { NextFunction, Request, Response } from 'express';
 import helmet from 'helmet';
 
 // Configuração comum da API (usada no main.ts e nos testes, para testar exatamente o que roda em produção).
@@ -11,6 +12,17 @@ export function configurarApp(app: NestExpressApplication) {
 
   app.disable('x-powered-by');
   app.use(helmet());
+
+  // Respostas de autenticação (perfil, sessões...) nunca podem ficar em cache do navegador ou de proxies.
+  app.use('/auth', (_req: Request, res: Response, proximo: NextFunction) => {
+    res.setHeader('Cache-Control', 'no-store');
+    proximo();
+  });
+
+  // Corpo pequeno: nenhuma rota atual precisa de mais que isso, e limita abuso de memória.
+  app.useBodyParser('json', { limit: '20kb' });
+  app.useBodyParser('urlencoded', { limit: '20kb', extended: false });
+
   app.use(cookieParser());
   app.enableCors({ origin: process.env.WEB_ORIGIN, credentials: true });
   app.useGlobalPipes(

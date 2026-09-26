@@ -36,6 +36,20 @@ export function validarAmbiente(config: Record<string, unknown>): Record<string,
     erros.push('WEB_ORIGIN deve ser uma origem https:// em produção.');
   }
 
+  if (config.NODE_ENV === 'production') {
+    if (config.EMAIL_TRANSPORT !== 'smtp') {
+      erros.push('EMAIL_TRANSPORT deve ser "smtp" em produção (o transporte de arquivo é só para desenvolvimento).');
+    }
+    for (const variavel of ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASS', 'EMAIL_FROM']) {
+      if (typeof config[variavel] !== 'string' || config[variavel] === '') {
+        erros.push(`${variavel} não está definida.`);
+      }
+    }
+    if (config.SENHAS_VAZADAS === 'desligado') {
+      erros.push('SENHAS_VAZADAS não pode estar desligado em produção.');
+    }
+  }
+
   if (erros.length > 0) {
     throw new Error(`Configuração de ambiente inválida:\n- ${erros.join('\n- ')}`);
   }

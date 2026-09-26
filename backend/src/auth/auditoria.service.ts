@@ -4,11 +4,21 @@ import { PrismaSystemService } from '../database/prisma-system.service.js';
 
 export type TipoEventoAuditoria =
   | 'cadastro'
+  | 'cadastro_email_existente'
+  | 'email_verificado'
+  | 'verificacao_reenviada'
   | 'login_ok'
   | 'login_falha'
   | 'login_bloqueado'
   | 'conta_bloqueada'
-  | 'logout';
+  | 'logout'
+  | 'recuperacao_solicitada'
+  | 'recuperacao_email_desconhecido'
+  | 'recuperacao_limitada'
+  | 'senha_redefinida'
+  | 'senha_alterada'
+  | 'sessao_encerrada'
+  | 'sessoes_encerradas';
 
 @Injectable()
 export class AuditoriaService {
