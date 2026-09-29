@@ -16,13 +16,24 @@ permissions:
   contents: read
   packages: write
 
-env:
-  REGISTRY: ghcr.io
-  OWNER: ${{ github.repository_owner }}
-
 jobs:
-  backend:
+  # O Docker exige nome de imagem em minúsculas; github.repository_owner preserva a grafia do usuário
+  # (ex.: "TheBlazerGamer"), então convertemos aqui uma vez e reaproveitamos nos dois jobs abaixo.
+  config:
     runs-on: ubuntu-latest
+    outputs:
+      owner: ${{ steps.owner.outputs.lower }}
+    steps:
+      - id: owner
+        run: echo "lower=${OWNER,,}" >> "$GITHUB_OUTPUT"
+        env:
+          OWNER: ${{ github.repository_owner }}
+
+  backend:
+    needs: config
+    runs-on: ubuntu-latest
+    env:
+      IMAGEM: ghcr.io/${{ needs.config.outputs.owner }}/nuvra-backend
     steps:
       - uses: actions/checkout@v4
 
@@ -42,8 +53,8 @@ jobs:
           target: runtime
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.OWNER }}/nuvra-backend:latest
-            ${{ env.REGISTRY }}/${{ env.OWNER }}/nuvra-backend:${{ github.sha }}
+            ${{ env.IMAGEM }}:latest
+            ${{ env.IMAGEM }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -54,13 +65,16 @@ jobs:
           target: migrator
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.OWNER }}/nuvra-backend:migrator-latest
-            ${{ env.REGISTRY }}/${{ env.OWNER }}/nuvra-backend:migrator-${{ github.sha }}
+            ${{ env.IMAGEM }}:migrator-latest
+            ${{ env.IMAGEM }}:migrator-${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
   frontend:
+    needs: config
     runs-on: ubuntu-latest
+    env:
+      IMAGEM: ghcr.io/${{ needs.config.outputs.owner }}/nuvra-frontend
     steps:
       - uses: actions/checkout@v4
 
@@ -81,7 +95,7 @@ jobs:
           build-args: |
             NEXT_PUBLIC_API_URL=https://api.gruponuvra.com.br
           tags: |
-            ${{ env.REGISTRY }}/${{ env.OWNER }}/nuvra-frontend:latest
-            ${{ env.REGISTRY }}/${{ env.OWNER }}/nuvra-frontend:${{ github.sha }}
+            ${{ env.IMAGEM }}:latest
+            ${{ env.IMAGEM }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
