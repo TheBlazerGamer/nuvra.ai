@@ -2,6 +2,10 @@
 FROM node:22-bookworm-slim AS builder
 WORKDIR /app
 
+# A imagem "slim" não traz OpenSSL; os binários que o Prisma baixa em `prisma generate` precisam dele.
+RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY package.json package-lock.json prisma.config.ts ./
 COPY prisma ./prisma
 RUN npm ci
@@ -20,6 +24,9 @@ CMD ["npx", "prisma", "migrate", "deploy"]
 FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
+
+RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 # Usuário sem privilégios (a imagem base roda como root por padrão).
 RUN groupadd --system nuvra && useradd --system --gid nuvra nuvra
