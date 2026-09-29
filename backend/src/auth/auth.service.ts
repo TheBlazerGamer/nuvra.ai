@@ -57,7 +57,7 @@ export class AuthService {
   }
 
   async aguardarTarefas(): Promise<void> {
-    await Promise.all([...this.tarefas]);
+    await Promise.all(this.tarefas);
   }
 
   // ---------- cadastro e verificação de e-mail ----------
