@@ -1,0 +1,11 @@
+node_modules
+dist
+.env
+.env.*
+.pgdata
+.emails-dev
+legacy
+test
+*.spec.ts
+*.db-spec.ts
+.git

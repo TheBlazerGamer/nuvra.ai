@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx vitest run *)",
+      "Bash(npm run lint *)",
+      "Bash(npx tsc --noEmit *)",
+      "PowerShell(Get-NetTCPConnection*)",
+      "PowerShell(Get-Content*)",
+      "mcp__Claude_Browser__read_console_messages",
+      "mcp__Claude_Browser__find",
+      "Bash(git check-ignore *)",
+      "Bash(npm --version)",
+      "PowerShell(Get-Process*)",
+      "PowerShell(Test-Path*)",
+      "mcp__Claude_Browser__read_page"
+    ]
+  }
+}
