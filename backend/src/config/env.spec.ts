@@ -36,6 +36,9 @@ describe('validarAmbiente', () => {
     SMTP_USER: 'usuario',
     SMTP_PASS: 'senha',
     EMAIL_FROM: 'Nuvra.AI <nao-responda@exemplo.com>',
+    TELEGRAM_BOT_TOKEN: '123:abc',
+    TELEGRAM_BOT_USERNAME: 'nuvra_bot',
+    TELEGRAM_WEBHOOK_SECRET: 'segredo',
   };
 
   it('em produção exige WEB_ORIGIN em https', () => {
@@ -50,5 +53,10 @@ describe('validarAmbiente', () => {
 
   it('em produção não deixa desligar a checagem de senhas vazadas', () => {
     expect(() => validarAmbiente({ ...producao, SENHAS_VAZADAS: 'desligado' })).toThrow(/SENHAS_VAZADAS/);
+  });
+
+  it('em produção exige as credenciais do bot do Telegram', () => {
+    expect(() => validarAmbiente({ ...producao, TELEGRAM_BOT_TOKEN: undefined })).toThrow(/TELEGRAM_BOT_TOKEN/);
+    expect(() => validarAmbiente({ ...producao, TELEGRAM_WEBHOOK_SECRET: '' })).toThrow(/TELEGRAM_WEBHOOK_SECRET/);
   });
 });

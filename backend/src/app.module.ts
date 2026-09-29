@@ -7,6 +7,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller.js';
 import { AuthModule } from './auth/auth.module.js';
 import { OrigemGuard } from './auth/origem.guard.js';
+import { CanaisModule } from './canais/canais.module.js';
 import { validarAmbiente } from './config/env.js';
 import { DatabaseModule } from './database/database.module.js';
 
@@ -25,6 +26,7 @@ const RAIZ_BACKEND = join(dirname(fileURLToPath(import.meta.url)), '..');
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
     DatabaseModule,
     AuthModule,
+    CanaisModule,
   ],
   controllers: [AppController],
   providers: [

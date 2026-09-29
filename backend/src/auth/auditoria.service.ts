@@ -18,7 +18,10 @@ export type TipoEventoAuditoria =
   | 'senha_redefinida'
   | 'senha_alterada'
   | 'sessao_encerrada'
-  | 'sessoes_encerradas';
+  | 'sessoes_encerradas'
+  | 'canal_link_gerado'
+  | 'canal_vinculado'
+  | 'canal_desvinculado';
 
 @Injectable()
 export class AuditoriaService {

@@ -48,6 +48,11 @@ export function validarAmbiente(config: Record<string, unknown>): Record<string,
     if (config.SENHAS_VAZADAS === 'desligado') {
       erros.push('SENHAS_VAZADAS não pode estar desligado em produção.');
     }
+    for (const variavel of ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_BOT_USERNAME', 'TELEGRAM_WEBHOOK_SECRET']) {
+      if (typeof config[variavel] !== 'string' || config[variavel] === '') {
+        erros.push(`${variavel} não está definida.`);
+      }
+    }
   }
 
   if (erros.length > 0) {
