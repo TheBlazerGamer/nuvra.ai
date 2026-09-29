@@ -12,6 +12,11 @@ RUN npm ci
 
 COPY tsconfig*.json nest-cli.json ./
 COPY src ./src
+# `prisma.config.ts` exige DB_OWNER_URL só para carregar (mesmo sem se conectar); `prisma generate`
+# não abre conexão nenhuma, então um valor de mentira aqui é seguro — nunca chega ao container final
+# (variável só existe neste estágio de build) nem é usado de verdade pelo `migrator` em produção
+# (lá o valor real é passado por `docker run -e DB_OWNER_URL=...`, que substitui este).
+ENV DB_OWNER_URL="postgresql://build:build@localhost:5432/build"
 RUN npx prisma generate && npm run build
 
 # --- migrator: mesma imagem do build, usada só para rodar as migrations (uma vez por deploy) ---
