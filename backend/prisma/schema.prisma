@@ -24,8 +24,8 @@ model Cliente {
   atualizadoEm DateTime      @updatedAt @map("atualizado_em") @db.Timestamptz(6)
 
   sessoes        Sessao[]
-  vinculoTelegram VinculoTelegram?
-  tokensVinculo  TokenVinculoTelegram[]
+  vinculosCanal  VinculoCanal[]
+  tokensVinculoCanal TokenVinculoCanal[]
   tokensEmail    TokenEmail[]
   auditoria      EventoAuditoria[]
 
@@ -49,10 +49,18 @@ model Sessao {
   @@map("sessoes")
 }
 
+// Canal-agnóstico de propósito (ver docs/plano-migracao-whatsapp.md): o Telegram é o primeiro canal,
+// o WhatsApp entra depois sem precisar de tabela nova nem trocar o núcleo da conversa.
+enum Canal {
+  TELEGRAM
+  WHATSAPP
+}
+
 // Uso único e curta duração: aparece só como link t.me/<bot>?start=<token>.
-model TokenVinculoTelegram {
+model TokenVinculoCanal {
   id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   clienteId String    @map("cliente_id") @db.Uuid
+  canal     Canal
   tokenHash String    @unique @map("token_hash")
   criadoEm  DateTime  @default(now()) @map("criado_em") @db.Timestamptz(6)
   expiraEm  DateTime  @map("expira_em") @db.Timestamptz(6)
@@ -60,20 +68,24 @@ model TokenVinculoTelegram {
 
   cliente Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
 
-  @@index([clienteId])
-  @@map("tokens_vinculo_telegram")
+  @@index([clienteId, canal, criadoEm])
+  @@map("tokens_vinculo_canal")
 }
 
-model VinculoTelegram {
-  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  clienteId      String   @unique @map("cliente_id") @db.Uuid
-  telegramUserId BigInt   @unique @map("telegram_user_id")
-  chatId         BigInt   @map("chat_id")
-  vinculadoEm    DateTime @default(now()) @map("vinculado_em") @db.Timestamptz(6)
+model VinculoCanal {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clienteId   String   @map("cliente_id") @db.Uuid
+  canal       Canal
+  // Telegram: id numérico do usuário e do chat, como texto. WhatsApp (futuro): telefone em E.164.
+  idExterno   String   @map("id_externo")
+  chatId      String   @map("chat_id")
+  vinculadoEm DateTime @default(now()) @map("vinculado_em") @db.Timestamptz(6)
 
   cliente Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
 
-  @@map("vinculos_telegram")
+  @@unique([clienteId, canal])
+  @@unique([canal, idExterno])
+  @@map("vinculos_canal")
 }
 
 // Trilha de auditoria para a revisão de segurança externa. Só o papel "system" lê e escreve.

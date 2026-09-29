@@ -187,8 +187,8 @@ export class AuthService {
         where: { id: clienteId },
         select: { id: true, nome: true, email: true, criadoEm: true, emailVerificadoEm: true },
       });
-      const vinculo = await tx.vinculoTelegram.findUnique({
-        where: { clienteId },
+      const vinculo = await tx.vinculoCanal.findUnique({
+        where: { clienteId_canal: { clienteId, canal: 'TELEGRAM' } },
         select: { vinculadoEm: true },
       });
       const { emailVerificadoEm, ...publico } = cliente;

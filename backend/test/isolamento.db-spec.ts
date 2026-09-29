@@ -43,8 +43,12 @@ beforeAll(async () => {
     data: { clienteId: clienteB.id, tokenHash: 'b1', expiraEm: daqui1h() },
     select: { id: true },
   });
-  await system.vinculoTelegram.create({ data: { clienteId: clienteA.id, telegramUserId: 111n, chatId: 111n } });
-  await system.vinculoTelegram.create({ data: { clienteId: clienteB.id, telegramUserId: 222n, chatId: 222n } });
+  await system.vinculoCanal.create({
+    data: { clienteId: clienteA.id, canal: 'TELEGRAM', idExterno: '111', chatId: '111' },
+  });
+  await system.vinculoCanal.create({
+    data: { clienteId: clienteB.id, canal: 'TELEGRAM', idExterno: '222', chatId: '222' },
+  });
 }, 180_000);
 
 afterAll(async () => {
@@ -58,21 +62,39 @@ describe('isolamento entre clientes (Row Level Security)', () => {
   it('sem contexto de cliente, o papel da API não enxerga nenhuma linha (mesmo "esquecendo" o filtro)', async () => {
     expect(await semContexto.sessao.findMany({ select: { id: true } })).toHaveLength(0);
     expect(await semContexto.cliente.findMany({ select: { id: true } })).toHaveLength(0);
-    expect(await semContexto.vinculoTelegram.findMany()).toHaveLength(0);
+    expect(await semContexto.vinculoCanal.findMany()).toHaveLength(0);
   });
 
   it('com o contexto do cliente A, só aparecem dados de A', async () => {
     const { sessoes, clientes, vinculos } = await tenant.comTenant(clienteA.id, async (tx) => ({
       sessoes: await tx.sessao.findMany({ select: { clienteId: true } }),
       clientes: await tx.cliente.findMany({ select: { id: true } }),
-      vinculos: await tx.vinculoTelegram.findMany(),
+      vinculos: await tx.vinculoCanal.findMany(),
     }));
 
     expect(sessoes).toHaveLength(2);
     expect(sessoes.every((s) => s.clienteId === clienteA.id)).toBe(true);
     expect(clientes).toEqual([{ id: clienteA.id }]);
     expect(vinculos).toHaveLength(1);
-    expect(vinculos[0].telegramUserId).toBe(111n);
+    expect(vinculos[0].idExterno).toBe('111');
+  });
+
+  it('A não consegue apagar o vínculo de B, mas consegue apagar o próprio', async () => {
+    const apagouDeB = await tenant.comTenant(clienteA.id, (tx) =>
+      tx.vinculoCanal.deleteMany({ where: { clienteId: clienteB.id } }),
+    );
+    expect(apagouDeB.count).toBe(0);
+    expect(await system.vinculoCanal.count({ where: { clienteId: clienteB.id } })).toBe(1);
+
+    const apagouProprio = await tenant.comTenant(clienteA.id, (tx) =>
+      tx.vinculoCanal.deleteMany({ where: { clienteId: clienteA.id } }),
+    );
+    expect(apagouProprio.count).toBe(1);
+
+    // devolve o vínculo de A para não afetar os testes seguintes deste arquivo
+    await system.vinculoCanal.create({
+      data: { clienteId: clienteA.id, canal: 'TELEGRAM', idExterno: '111', chatId: '111' },
+    });
   });
 
   it('A não consegue ler a linha de B nem por id direto', async () => {
@@ -95,20 +117,20 @@ describe('isolamento entre clientes (Row Level Security)', () => {
   it('A não consegue gravar uma linha em nome de B', async () => {
     await expect(
       tenant.comTenant(clienteA.id, (tx) =>
-        tx.tokenVinculoTelegram.create({
-          data: { clienteId: clienteB.id, tokenHash: 'forjado', expiraEm: daqui1h() },
+        tx.tokenVinculoCanal.create({
+          data: { clienteId: clienteB.id, canal: 'TELEGRAM', tokenHash: 'forjado', expiraEm: daqui1h() },
           select: { id: true },
         }),
       ),
     ).rejects.toThrow(/row-level security/i);
 
-    expect(await system.tokenVinculoTelegram.count({ where: { tokenHash: 'forjado' } })).toBe(0);
+    expect(await system.tokenVinculoCanal.count({ where: { tokenHash: 'forjado' } })).toBe(0);
   });
 
   it('A consegue criar o próprio token de vínculo', async () => {
     const token = await tenant.comTenant(clienteA.id, (tx) =>
-      tx.tokenVinculoTelegram.create({
-        data: { clienteId: clienteA.id, tokenHash: 'legitimo', expiraEm: daqui1h() },
+      tx.tokenVinculoCanal.create({
+        data: { clienteId: clienteA.id, canal: 'TELEGRAM', tokenHash: 'legitimo', expiraEm: daqui1h() },
         select: { id: true },
       }),
     );
