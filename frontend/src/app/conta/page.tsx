@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Logo } from "@/components/brand/logo";
 import { Alert } from "@/components/ui/alert";
@@ -49,6 +49,10 @@ export default function PaginaConta() {
     };
   }, [router]);
 
+  function recarregarPerfil() {
+    apiFetch<Perfil>("/auth/eu").then(setPerfil);
+  }
+
   async function sair() {
     await apiFetch("/auth/logout", { method: "POST" }).catch(() => {});
     router.replace("/login");
@@ -82,19 +86,11 @@ export default function PaginaConta() {
 
         {!perfil.emailVerificado && <VerificacaoPendente />}
 
-        <Card className="flex flex-col gap-2">
-          <div className="flex items-center justify-between">
-            <h2 className="text-h3">Telegram</h2>
-            <Badge tone={perfil.telegramConectado ? "success" : "neutral"}>
-              {perfil.telegramConectado ? "Conectado" : "Não conectado"}
-            </Badge>
-          </div>
-          <p className="text-sm text-fg-muted">
-            {perfil.telegramConectado
-              ? "É por lá que você envia criativos e acompanha suas campanhas."
-              : "Em breve você poderá conectar sua conta do Telegram por aqui."}
-          </p>
-        </Card>
+        <Telegram
+          conectado={perfil.telegramConectado}
+          emailVerificado={perfil.emailVerificado}
+          aoMudar={recarregarPerfil}
+        />
 
         <TrocarSenha />
         <Sessoes />
@@ -130,6 +126,120 @@ function VerificacaoPendente() {
         )}
       </div>
     </Alert>
+  );
+}
+
+// Depois de abrir o link, o vínculo é confirmado pelo webhook do lado do Telegram — não há um
+// retorno direto pra cá. Enquanto isso, consultamos o perfil de tempos em tempos pra saber quando deu certo.
+const INTERVALO_CONSULTA_MS = 3_000;
+const TEMPO_LIMITE_MS = 2 * 60_000;
+
+function Telegram({
+  conectado,
+  emailVerificado,
+  aoMudar,
+}: {
+  conectado: boolean;
+  emailVerificado: boolean;
+  aoMudar: () => void;
+}) {
+  const [carregando, setCarregando] = useState(false);
+  const [aguardando, setAguardando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+  const cancelarConsulta = useRef<() => void>(() => {});
+
+  useEffect(() => () => cancelarConsulta.current(), []);
+
+  async function conectar() {
+    setErro(null);
+    setCarregando(true);
+    try {
+      const { link } = await apiFetch<{ link: string }>("/canais/telegram/vincular", { method: "POST" });
+      window.open(link, "_blank", "noopener,noreferrer");
+      aguardarConfirmacao();
+    } catch (e) {
+      setErro(e instanceof ApiError ? e.message : "Não foi possível gerar o link de conexão.");
+    } finally {
+      setCarregando(false);
+    }
+  }
+
+  function aguardarConfirmacao() {
+    setAguardando(true);
+    let cancelado = false;
+    const inicio = Date.now();
+
+    const consultar = () => {
+      apiFetch<Perfil>("/auth/eu").then((p) => {
+        if (cancelado) return;
+        if (p.telegramConectado) {
+          setAguardando(false);
+          aoMudar();
+          return;
+        }
+        if (Date.now() - inicio >= TEMPO_LIMITE_MS) {
+          setAguardando(false);
+          return;
+        }
+        setTimeout(consultar, INTERVALO_CONSULTA_MS);
+      });
+    };
+    setTimeout(consultar, INTERVALO_CONSULTA_MS);
+
+    cancelarConsulta.current = () => {
+      cancelado = true;
+    };
+  }
+
+  async function desconectar() {
+    setErro(null);
+    setCarregando(true);
+    try {
+      await apiFetch("/canais/telegram", { method: "DELETE" });
+      aoMudar();
+    } catch (e) {
+      setErro(e instanceof ApiError ? e.message : "Não foi possível desconectar.");
+    } finally {
+      setCarregando(false);
+    }
+  }
+
+  return (
+    <Card className="flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <h2 className="text-h3">Telegram</h2>
+        <Badge tone={conectado ? "success" : "neutral"}>{conectado ? "Conectado" : "Não conectado"}</Badge>
+      </div>
+
+      {conectado ? (
+        <>
+          <p className="text-sm text-fg-muted">É por lá que você envia criativos e acompanha suas campanhas.</p>
+          <Button variant="ghost" size="sm" loading={carregando} onClick={desconectar} className="self-start">
+            Desconectar
+          </Button>
+        </>
+      ) : (
+        <>
+          <p className="text-sm text-fg-muted">
+            {emailVerificado
+              ? "Conecte sua conta para enviar criativos e receber relatórios pelo Telegram."
+              : "Confirme seu e-mail para poder conectar o Telegram."}
+          </p>
+          {aguardando && <p className="text-sm text-fg-subtle">Aguardando você confirmar no Telegram…</p>}
+          {erro && <Alert tone="danger">{erro}</Alert>}
+          <Button
+            variant="secondary"
+            size="sm"
+            loading={carregando}
+            disabled={!emailVerificado}
+            onClick={conectar}
+            className="self-start"
+          >
+            Conectar com Telegram
+          </Button>
+        </>
+      )}
+    </Card>
   );
 }
 
