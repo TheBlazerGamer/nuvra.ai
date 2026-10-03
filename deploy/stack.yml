@@ -31,12 +31,17 @@ services:
       PORT: "3001"
       TRUST_PROXY: "1"
       WEB_ORIGIN: https://gestor.gruponuvra.com.br
-      DB_OWNER_URL: postgresql://nuvra_owner:${DB_OWNER_PASSWORD}@postgres:5432/nuvra
+      API_ORIGIN: https://api.gruponuvra.com.br
+      # Sem DB_OWNER_URL de propósito: a API nunca usa o papel dono (só as migrations, em container à parte).
       DB_APP_URL: postgresql://nuvra_app:${DB_APP_PASSWORD}@postgres:5432/nuvra
       DB_SYSTEM_URL: postgresql://nuvra_system:${DB_SYSTEM_PASSWORD}@postgres:5432/nuvra
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME}
       TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET}
+      META_APP_ID: ${META_APP_ID}
+      META_APP_SECRET: ${META_APP_SECRET}
+      META_LOGIN_CONFIG_ID: ${META_LOGIN_CONFIG_ID:-}
+      META_TOKEN_ENCRYPTION_KEY: ${META_TOKEN_ENCRYPTION_KEY}
       EMAIL_TRANSPORT: smtp
       EMAIL_FROM: ${EMAIL_FROM}
       SMTP_HOST: smtp-relay.brevo.com

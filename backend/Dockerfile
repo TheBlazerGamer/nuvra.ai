@@ -19,11 +19,13 @@ COPY src ./src
 ENV DB_OWNER_URL="postgresql://build:build@localhost:5432/build"
 RUN npx prisma generate && npm run build
 
-# --- migrator: mesma imagem do build, usada só para rodar as migrations (uma vez por deploy) ---
-# Roda separado do serviço principal, nunca dentro do container que atende requisições:
-# `docker run --rm --network network_swarm_internal --env-file .env <imagem>:migrator`
+# --- migrator: mesma imagem do build, usada só para preparar o banco (uma vez por deploy) ---
+# Aplica as migrations e liga o login dos papéis nuvra_app/nuvra_system (ambos idempotentes: pode rodar
+# a cada deploy). Roda separado do serviço principal, nunca dentro do container que atende requisições.
+# Precisa de DB_OWNER_URL, DB_APP_URL e DB_SYSTEM_URL (ver deploy/README.md).
 FROM builder AS migrator
-CMD ["npx", "prisma", "migrate", "deploy"]
+COPY scripts ./scripts
+CMD ["sh", "-c", "npx prisma migrate deploy && npx tsx scripts/provisionar-papeis.ts"]
 
 # --- runtime: só o necessário para rodar a API, sem ferramenta de build nem o CLI do Prisma ---
 FROM node:22-bookworm-slim AS runtime
