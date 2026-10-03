@@ -28,6 +28,8 @@ model Cliente {
   tokensVinculoCanal TokenVinculoCanal[]
   tokensEmail    TokenEmail[]
   auditoria      EventoAuditoria[]
+  conexaoMeta    ConexaoMeta?
+  estadosOAuthMeta EstadoOAuthMeta[]
 
   @@map("clientes")
 }
@@ -86,6 +88,48 @@ model VinculoCanal {
   @@unique([clienteId, canal])
   @@unique([canal, idExterno])
   @@map("vinculos_canal")
+}
+
+enum TipoTokenMeta {
+  USUARIO
+  SISTEMA
+}
+
+// A conta de anúncio e a Página do cliente na Meta, ligadas via Facebook Login for Business.
+// O token nunca é lido pelo papel do cliente (nem por coluna) — só o papel de sistema o usa,
+// e sempre cifrado (ver MetaCriptografiaService). Uma conexão por cliente.
+model ConexaoMeta {
+  id                 String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clienteId          String        @unique @map("cliente_id") @db.Uuid
+  tipoToken          TipoTokenMeta @map("tipo_token")
+  tokenCriptografado String        @map("token_criptografado")
+  contaAnuncioId     String?       @map("conta_anuncio_id")
+  contaAnuncioNome   String?       @map("conta_anuncio_nome")
+  paginaId           String?       @map("pagina_id")
+  paginaNome         String?       @map("pagina_nome")
+  expiraEm           DateTime?     @map("expira_em") @db.Timestamptz(6)
+  conectadoEm        DateTime      @default(now()) @map("conectado_em") @db.Timestamptz(6)
+  atualizadoEm       DateTime      @updatedAt @map("atualizado_em") @db.Timestamptz(6)
+
+  cliente Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@map("conexoes_meta")
+}
+
+// CSRF do login com a Meta: o "state" que mandamos no início do OAuth e conferimos na volta.
+// Uso único e curta duração, só o papel de sistema acessa (o cliente nunca lê nem grava aqui).
+model EstadoOAuthMeta {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clienteId  String    @map("cliente_id") @db.Uuid
+  estadoHash String    @unique @map("estado_hash")
+  criadoEm   DateTime  @default(now()) @map("criado_em") @db.Timestamptz(6)
+  expiraEm   DateTime  @map("expira_em") @db.Timestamptz(6)
+  usadoEm    DateTime? @map("usado_em") @db.Timestamptz(6)
+
+  cliente Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@index([clienteId, criadoEm])
+  @@map("estados_oauth_meta")
 }
 
 // Trilha de auditoria para a revisão de segurança externa. Só o papel "system" lê e escreve.

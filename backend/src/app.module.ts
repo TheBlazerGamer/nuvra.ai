@@ -10,6 +10,7 @@ import { OrigemGuard } from './auth/origem.guard.js';
 import { CanaisModule } from './canais/canais.module.js';
 import { validarAmbiente } from './config/env.js';
 import { DatabaseModule } from './database/database.module.js';
+import { MetaModule } from './meta/meta.module.js';
 
 // Resolvido a partir deste arquivo (não de process.cwd()): o .env é sempre o de backend/,
 // não importa de qual diretório o processo é iniciado (ex.: um gerenciador de preview na raiz do projeto).
@@ -27,6 +28,7 @@ const RAIZ_BACKEND = join(dirname(fileURLToPath(import.meta.url)), '..');
     DatabaseModule,
     AuthModule,
     CanaisModule,
+    MetaModule,
   ],
   controllers: [AppController],
   providers: [

@@ -39,6 +39,10 @@ describe('validarAmbiente', () => {
     TELEGRAM_BOT_TOKEN: '123:abc',
     TELEGRAM_BOT_USERNAME: 'nuvra_bot',
     TELEGRAM_WEBHOOK_SECRET: 'segredo',
+    META_APP_ID: '123456',
+    META_APP_SECRET: 'segredo-meta',
+    META_TOKEN_ENCRYPTION_KEY: Buffer.alloc(32, 1).toString('base64'),
+    API_ORIGIN: 'https://api.exemplo.com',
   };
 
   it('em produção exige WEB_ORIGIN em https', () => {
@@ -58,5 +62,16 @@ describe('validarAmbiente', () => {
   it('em produção exige as credenciais do bot do Telegram', () => {
     expect(() => validarAmbiente({ ...producao, TELEGRAM_BOT_TOKEN: undefined })).toThrow(/TELEGRAM_BOT_TOKEN/);
     expect(() => validarAmbiente({ ...producao, TELEGRAM_WEBHOOK_SECRET: '' })).toThrow(/TELEGRAM_WEBHOOK_SECRET/);
+  });
+
+  it('em produção exige as credenciais do login com a Meta', () => {
+    expect(() => validarAmbiente({ ...producao, META_APP_SECRET: undefined })).toThrow(/META_APP_SECRET/);
+    expect(() => validarAmbiente({ ...producao, API_ORIGIN: '' })).toThrow(/API_ORIGIN/);
+  });
+
+  it('recusa uma META_TOKEN_ENCRYPTION_KEY que não tenha 32 bytes em base64', () => {
+    expect(() => validarAmbiente({ ...producao, META_TOKEN_ENCRYPTION_KEY: 'chave-curta-demais' })).toThrow(
+      /32 bytes/,
+    );
   });
 });

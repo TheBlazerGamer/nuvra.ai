@@ -53,6 +53,16 @@ export function validarAmbiente(config: Record<string, unknown>): Record<string,
         erros.push(`${variavel} não está definida.`);
       }
     }
+    for (const variavel of ['META_APP_ID', 'META_APP_SECRET', 'META_TOKEN_ENCRYPTION_KEY', 'API_ORIGIN']) {
+      if (typeof config[variavel] !== 'string' || config[variavel] === '') {
+        erros.push(`${variavel} não está definida.`);
+      }
+    }
+  }
+
+  const chaveMeta = config.META_TOKEN_ENCRYPTION_KEY;
+  if (typeof chaveMeta === 'string' && chaveMeta.length > 0 && Buffer.from(chaveMeta, 'base64').length !== 32) {
+    erros.push('META_TOKEN_ENCRYPTION_KEY deve ser uma chave de 32 bytes em base64.');
   }
 
   if (erros.length > 0) {

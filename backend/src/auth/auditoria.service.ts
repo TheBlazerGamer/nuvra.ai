@@ -21,7 +21,11 @@ export type TipoEventoAuditoria =
   | 'sessoes_encerradas'
   | 'canal_link_gerado'
   | 'canal_vinculado'
-  | 'canal_desvinculado';
+  | 'canal_desvinculado'
+  | 'meta_conectado'
+  | 'meta_erro_callback'
+  | 'meta_ativos_selecionados'
+  | 'meta_desconectado';
 
 @Injectable()
 export class AuditoriaService {

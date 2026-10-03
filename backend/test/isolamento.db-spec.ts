@@ -49,6 +49,18 @@ beforeAll(async () => {
   await system.vinculoCanal.create({
     data: { clienteId: clienteB.id, canal: 'TELEGRAM', idExterno: '222', chatId: '222' },
   });
+  await system.conexaoMeta.create({
+    data: {
+      clienteId: clienteA.id,
+      tipoToken: 'USUARIO',
+      tokenCriptografado: 'cifrado-fake',
+      contaAnuncioId: 'act_111',
+      contaAnuncioNome: 'Conta A',
+    },
+  });
+  await system.estadoOAuthMeta.create({
+    data: { clienteId: clienteA.id, estadoHash: 'hash-fake', expiraEm: daqui1h() },
+  });
 }, 180_000);
 
 afterAll(async () => {
@@ -211,6 +223,45 @@ describe('isolamento entre clientes (Row Level Security)', () => {
   it('o papel de sistema enxerga todos os clientes (autenticação e rotinas)', async () => {
     expect(await system.sessao.count()).toBe(3);
     expect(await system.cliente.count()).toBe(2);
+  });
+
+  it('A vê o status da própria conexão com a Meta, nunca o token, e não vê nem apaga a de B', async () => {
+    const proprio = await tenant.comTenant(clienteA.id, (tx) =>
+      tx.conexaoMeta.findUnique({
+        where: { clienteId: clienteA.id },
+        select: { contaAnuncioId: true, contaAnuncioNome: true },
+      }),
+    );
+    expect(proprio?.contaAnuncioNome).toBe('Conta A');
+
+    await expect(
+      tenant.comTenant(clienteA.id, (tx) => tx.conexaoMeta.findUnique({ where: { clienteId: clienteA.id } })),
+    ).rejects.toThrow(/permission denied/i);
+
+    const deB = await tenant.comTenant(clienteB.id, (tx) =>
+      tx.conexaoMeta.findUnique({ where: { clienteId: clienteA.id }, select: { contaAnuncioId: true } }),
+    );
+    expect(deB).toBeNull();
+
+    const apagouDeA = await tenant.comTenant(clienteB.id, (tx) =>
+      tx.conexaoMeta.deleteMany({ where: { clienteId: clienteA.id } }),
+    );
+    expect(apagouDeA.count).toBe(0);
+    expect(await system.conexaoMeta.count({ where: { clienteId: clienteA.id } })).toBe(1);
+  });
+
+  it('o papel da API não enxerga nem cria o "state" do login com a Meta (só o papel de sistema mexe nisso)', async () => {
+    await expect(
+      tenant.comTenant(clienteA.id, (tx) => tx.estadoOAuthMeta.findMany({ select: { id: true } })),
+    ).rejects.toThrow(/permission denied/i);
+    await expect(
+      tenant.comTenant(clienteA.id, (tx) =>
+        tx.estadoOAuthMeta.create({
+          data: { clienteId: clienteA.id, estadoHash: 'forjado', expiraEm: daqui1h() },
+          select: { id: true },
+        }),
+      ),
+    ).rejects.toThrow(/permission denied/i);
   });
 
   it('e-mail é sempre gravado em minúsculas (restrição no banco)', async () => {
