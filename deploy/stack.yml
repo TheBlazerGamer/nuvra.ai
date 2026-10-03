@@ -23,6 +23,23 @@ services:
     deploy:
       replicas: 1
 
+  # Prepara o banco: aplica as migrations e liga o login dos papéis nuvra_app/nuvra_system.
+  # Roda sozinho a cada deploy novo, termina e fica parado (no Portainer aparece 0/1: é o normal).
+  # Se o Postgres ainda estiver ligando, tenta de novo sozinho (até 10 vezes).
+  migrator:
+    image: ghcr.io/theblazergamer/nuvra-backend:migrator-latest
+    networks: [nuvra_internal]
+    environment:
+      DB_OWNER_URL: postgresql://nuvra_owner:${DB_OWNER_PASSWORD}@postgres:5432/nuvra
+      DB_APP_URL: postgresql://nuvra_app:${DB_APP_PASSWORD}@postgres:5432/nuvra
+      DB_SYSTEM_URL: postgresql://nuvra_system:${DB_SYSTEM_PASSWORD}@postgres:5432/nuvra
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 10
+
   backend:
     image: ghcr.io/theblazergamer/nuvra-backend:latest
     networks: [network_swarm_public, nuvra_internal]

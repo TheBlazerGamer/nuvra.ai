@@ -18,22 +18,14 @@ Cada `push` na branch `main` faz o GitHub construir e publicar duas imagens no G
 
 Por padrão, pacotes no GHCR nascem **privados**. Para o Portainer conseguir baixar a imagem, ou você torna o pacote público (mais simples: no GitHub, dentro do pacote gerado, em Package settings → Change visibility), ou cria uma credencial de acesso no Portainer. Recomendo começar público — não tem código nenhum "secreto" dentro da imagem, todo segredo real fica nas variáveis de ambiente, fora da imagem.
 
-### 3. Banco de dados
-**Ordem:** faça o passo 4 (subir o stack) primeiro — é ele que cria o Postgres — e depois volte aqui. Isto roda **uma vez**, e de novo cada vez que houver uma migration nova.
+### 3. Banco de dados (automático)
+Não há nada para rodar à mão. O stack já inclui o serviço `migrator`: a cada deploy novo ele aplica as migrations **e** liga o login dos papéis `nuvra_app`/`nuvra_system`, depois termina e fica parado. É seguro rodar muitas vezes (não estraga nada). Se o Postgres ainda estiver ligando, ele tenta de novo sozinho.
 
-Prepare o banco com **um único container avulso** (Portainer → Containers → Add container, ou `docker run` pelo terminal do servidor). Ele aplica as migrations **e** liga o login dos papéis `nuvra_app`/`nuvra_system` (por isso recebe as três URLs). Pode rodar de novo a cada deploy: não estraga nada.
-   ```
-   docker run --rm --network nuvra_nuvra_internal \
-     -e DB_OWNER_URL="postgresql://nuvra_owner:<DB_OWNER_PASSWORD>@postgres:5432/nuvra" \
-     -e DB_APP_URL="postgresql://nuvra_app:<DB_APP_PASSWORD>@postgres:5432/nuvra" \
-     -e DB_SYSTEM_URL="postgresql://nuvra_system:<DB_SYSTEM_PASSWORD>@postgres:5432/nuvra" \
-     ghcr.io/theblazergamer/nuvra-backend:migrator-latest
-   ```
-   No Portainer, use a imagem `ghcr.io/theblazergamer/nuvra-backend:migrator-latest`, a rede `nuvra_nuvra_internal` e as três variáveis acima. Ao final, o log deve terminar com `Papéis nuvra_app e nuvra_system provisionados.`
+Para conferir: Portainer → Stacks → `nuvra` → serviço `migrator` → **Logs**. O final deve ser `Papéis nuvra_app e nuvra_system provisionados.` Depois de terminar, o serviço aparece como **0/1** — é o normal, não é erro.
 
-   **Dica sobre as senhas:** gere-as só com letras e números (sem `@`, `:`, `/`, `#`...), porque elas vão dentro de uma URL. Longas (40+ caracteres) já bastam.
+**Dica sobre as senhas:** gere-as só com letras e números (sem `@`, `:`, `/`, `#`...), porque elas vão dentro de uma URL. Longas (40+ caracteres) já bastam.
 
-   Enquanto este passo não for feito, o serviço `backend` fica reiniciando com erro de banco — é esperado; ele se estabiliza sozinho depois.
+Enquanto o `migrator` não termina, o serviço `backend` reinicia com erro de banco — é esperado; ele se estabiliza sozinho depois.
 
 ### 4. Subir o stack no Portainer
 Portainer → Stacks → Add stack → cole o conteúdo de [`stack.yml`](./stack.yml) → na seção **Environment variables**, cole (um por linha, sem aspas):
