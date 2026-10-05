@@ -82,7 +82,8 @@ export class MetaController {
     try {
       const curto = await this.graph.trocarCodigoPorToken(code, this.redirectUri());
       const longo = await this.graph.paraTokenDeLongaDuracao(curto.accessToken);
-      await this.conexoes.salvar(clienteId, 'USUARIO', longo);
+      const usuario = await this.graph.obterUsuario(longo.accessToken);
+      await this.conexoes.salvar(clienteId, 'USUARIO', longo, usuario.id);
 
       const contas = await this.graph.listarContasDeAnuncio(longo.accessToken);
       if (contas.length === 1) {

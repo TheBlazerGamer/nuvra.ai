@@ -43,7 +43,11 @@ Prazo: a construção é rápida; **o gargalo é a aprovação da Meta (dias a s
 2. Em Facebook Login for Business, crie uma **Configuração**. Ela define o tipo de token, as permissões e os ativos que o cliente autoriza. Anote o **ID da Configuração**.
 3. **Tipo de token.** Há dois: (a) token de usuário (expira, precisa ser renovado, em torno de 60 dias) e (b) token de usuário de sistema de integração (não expira, mas fica ligado ao portfólio empresarial do cliente). Cliente leigo muitas vezes **não tem portfólio empresarial**, então vamos **testar os dois** e decidir com dados.
 4. **Permissões (princípio do mínimo; a Meta recusa permissão sem uso demonstrado).** Candidatas: `ads_management`, `ads_read`, `pages_show_list`, `pages_read_engagement` e, só se for necessário, `business_management`. A lista final sai do que o fluxo realmente fizer.
-5. **URLs:** redirecionamento do login (`https://api.gruponuvra.com.br/meta/callback`; em desenvolvimento, `http://localhost:3001/meta/callback`), URL de desautorização e URL de exclusão de dados (chamadas da Meta quando o cliente remove o app).
+5. **URLs:** (todas já existem no backend)
+   - Redirecionamento do login (URIs de redirecionamento OAuth válidos): `https://api.gruponuvra.com.br/meta/callback` (em desenvolvimento, `http://localhost:3001/meta/callback`).
+   - URL de **desautorização** (chamada pela Meta quando o cliente remove o app): `https://api.gruponuvra.com.br/meta/desautorizacao`.
+   - URL de **exclusão de dados** (campo "Solicitação de exclusão de dados", escolha "URL de retorno de chamada de exclusão de dados", não a de instruções): `https://api.gruponuvra.com.br/meta/exclusao-dados`.
+   - Os dois avisos chegam assinados com o App Secret; o backend recusa qualquer um sem assinatura válida.
 6. **Funções:** em Funções, adicione você como administrador e crie **usuários de teste**.
 7. Copie para o `backend/.env`: `META_APP_ID`, `META_APP_SECRET`, `META_LOGIN_CONFIG_ID`. Eu confiro apenas se estão preenchidos, sem mostrar valores.
 

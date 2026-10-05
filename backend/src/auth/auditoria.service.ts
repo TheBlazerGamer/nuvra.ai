@@ -25,7 +25,9 @@ export type TipoEventoAuditoria =
   | 'meta_conectado'
   | 'meta_erro_callback'
   | 'meta_ativos_selecionados'
-  | 'meta_desconectado';
+  | 'meta_desconectado'
+  | 'meta_desautorizado'
+  | 'meta_exclusao_solicitada';
 
 @Injectable()
 export class AuditoriaService {

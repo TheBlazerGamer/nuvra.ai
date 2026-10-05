@@ -1,3 +1,4 @@
+import { createHmac } from 'node:crypto';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
@@ -21,7 +22,17 @@ let aguardarTarefas: () => Promise<void>;
 // Controla o que o dublê da Graph API devolve em cada teste.
 let contasFake: AtivoMeta[] = [{ id: 'act_1', nome: 'Conta Única' }];
 let paginasFake: AtivoMeta[] = [{ id: 'pg_1', nome: 'Página Única' }];
+let usuarioMetaFake = 'meta_user_0';
+let sequenciaUsuario = 0;
 const chamadasGraph: string[] = [];
+
+const SEGREDO_META = 'segredo-meta-fake';
+const signedRequest = (userId: string, segredo = SEGREDO_META) => {
+  const dados = Buffer.from(JSON.stringify({ algorithm: 'HMAC-SHA256', user_id: userId, issued_at: 1 })).toString('base64url');
+  return `${createHmac('sha256', segredo).update(dados).digest('base64url')}.${dados}`;
+};
+// Chamadas da própria Meta: sem cookie e sem Origin, corpo em formulário.
+const avisoDaMeta = (caminho: string, corpo: Record<string, string>) => http().post(caminho).type('form').send(corpo);
 
 const http = () => request(app.getHttpServer());
 const post = (caminho: string, corpo: object, cookie?: string) => {
@@ -81,7 +92,7 @@ beforeAll(async () => {
   process.env.TELEGRAM_BOT_USERNAME = 'nuvra_bot';
   process.env.TELEGRAM_WEBHOOK_SECRET = 'segredo-fake';
   process.env.META_APP_ID = '999888777';
-  process.env.META_APP_SECRET = 'segredo-meta-fake';
+  process.env.META_APP_SECRET = SEGREDO_META;
   process.env.META_TOKEN_ENCRYPTION_KEY = Buffer.alloc(32, 7).toString('base64');
 
   const { AppModule } = await import('../src/app.module.js');
@@ -99,6 +110,10 @@ beforeAll(async () => {
     paraTokenDeLongaDuracao: async (): Promise<TokenMeta> => {
       chamadasGraph.push('longaDuracao');
       return { accessToken: 'longo-fake', expiraEmSegundos: 5_184_000 };
+    },
+    obterUsuario: async () => {
+      chamadasGraph.push('obterUsuario');
+      return { id: usuarioMetaFake };
     },
     listarContasDeAnuncio: async (): Promise<AtivoMeta[]> => {
       chamadasGraph.push('listarContas');
@@ -134,6 +149,7 @@ beforeEach(() => {
   contasFake = [{ id: 'act_1', nome: 'Conta Única' }];
   paginasFake = [{ id: 'pg_1', nome: 'Página Única' }];
   chamadasGraph.length = 0;
+  usuarioMetaFake = `meta_user_${++sequenciaUsuario}`;
 });
 
 describe('login com a Meta', () => {
@@ -243,5 +259,53 @@ describe('login com a Meta', () => {
     const cookie = await novaContaComSessao();
     await get('/meta/ativos', cookie).expect(404);
     expect(chamadasGraph).toHaveLength(0);
+  });
+
+  describe('avisos da própria Meta (desautorização e exclusão de dados)', () => {
+    const conectar = async () => {
+      usuarioMetaFake = `meta_user_${++sequenciaUsuario}`;
+      const cookie = await novaContaComSessao();
+      const { callback } = await conectarESimularVolta(cookie);
+      await callback().expect(302);
+      return { cookie, metaUserId: usuarioMetaFake };
+    };
+    const temConexao = async (cookie: string) => (await get('/meta/status', cookie).expect(200)).text !== '';
+
+    it('desautorização assinada apaga a conexão de quem removeu o app, e só a dele', async () => {
+      const a = await conectar();
+      const b = await conectar();
+
+      const res = await avisoDaMeta('/meta/desautorizacao', { signed_request: signedRequest(a.metaUserId) });
+      expect(res.status).toBe(200);
+
+      expect(await temConexao(a.cookie)).toBe(false);
+      expect(await temConexao(b.cookie)).toBe(true);
+    });
+
+    it('recusa assinatura forjada, sem signed_request ou de outro segredo — e nada é apagado', async () => {
+      const a = await conectar();
+
+      await avisoDaMeta('/meta/desautorizacao', { signed_request: signedRequest(a.metaUserId, 'segredo-de-um-atacante') }).expect(400);
+      await avisoDaMeta('/meta/desautorizacao', { signed_request: 'lixo.lixo' }).expect(400);
+      await avisoDaMeta('/meta/desautorizacao', {}).expect(400);
+      await avisoDaMeta('/meta/exclusao-dados', { signed_request: signedRequest(a.metaUserId, 'segredo-de-um-atacante') }).expect(400);
+
+      expect(await temConexao(a.cookie)).toBe(true);
+    });
+
+    it('exclusão de dados apaga a conexão e responde com a URL e o código que a Meta exige', async () => {
+      const a = await conectar();
+
+      const res = await avisoDaMeta('/meta/exclusao-dados', { signed_request: signedRequest(a.metaUserId) }).expect(200);
+      expect(res.body.confirmation_code).toMatch(/^[0-9a-f]{24}$/);
+      expect(res.body.url).toBe(`${ORIGEM}/exclusao-de-dados?codigo=${res.body.confirmation_code}`);
+      expect(await temConexao(a.cookie)).toBe(false);
+    });
+
+    it('usuário que não conhecemos recebe a mesma resposta normal (não revela quem é cliente)', async () => {
+      const res = await avisoDaMeta('/meta/exclusao-dados', { signed_request: signedRequest('ninguem-conhecido') }).expect(200);
+      expect(res.body.confirmation_code).toBeTruthy();
+      await avisoDaMeta('/meta/desautorizacao', { signed_request: signedRequest('ninguem-conhecido') }).expect(200);
+    });
   });
 });

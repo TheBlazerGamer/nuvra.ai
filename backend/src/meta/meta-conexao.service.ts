@@ -15,14 +15,14 @@ export class MetaConexaoService {
     private readonly cripto: MetaCriptografiaService,
   ) {}
 
-  async salvar(clienteId: string, tipoToken: TipoTokenMeta, token: TokenMeta): Promise<void> {
+  async salvar(clienteId: string, tipoToken: TipoTokenMeta, token: TokenMeta, metaUserId: string): Promise<void> {
     const tokenCriptografado = this.cripto.cifrar(token.accessToken);
     const expiraEm = token.expiraEmSegundos ? new Date(Date.now() + token.expiraEmSegundos * 1000) : null;
 
     await this.system.conexaoMeta.upsert({
       where: { clienteId },
-      create: { clienteId, tipoToken, tokenCriptografado, expiraEm },
-      update: { tipoToken, tokenCriptografado, expiraEm },
+      create: { clienteId, metaUserId, tipoToken, tokenCriptografado, expiraEm },
+      update: { metaUserId, tipoToken, tokenCriptografado, expiraEm },
       select: { id: true },
     });
   }
@@ -67,6 +67,14 @@ export class MetaConexaoService {
         },
       }),
     );
+  }
+
+  // Chamado pelos avisos da Meta (sem sessão de cliente): apaga o token de quem removeu o app ou pediu exclusão.
+  // Devolve os clientes afetados, para a trilha de auditoria. Usuário desconhecido não é erro (devolve vazio).
+  async removerPorUsuarioMeta(metaUserId: string): Promise<string[]> {
+    const afetados = await this.system.conexaoMeta.findMany({ where: { metaUserId }, select: { clienteId: true } });
+    if (afetados.length > 0) await this.system.conexaoMeta.deleteMany({ where: { metaUserId } });
+    return afetados.map((a) => a.clienteId);
   }
 
   async desconectar(clienteId: string): Promise<boolean> {

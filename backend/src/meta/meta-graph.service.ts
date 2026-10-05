@@ -68,6 +68,12 @@ export class MetaGraphService {
     return { accessToken: dados.access_token, expiraEmSegundos: dados.expires_in };
   }
 
+  // ID do usuário na Meta (específico do nosso app), o mesmo que a Meta manda nos avisos de desautorização.
+  async obterUsuario(accessToken: string): Promise<{ id: string }> {
+    const dados = await this.obter<{ id: string }>('/me', { fields: 'id', access_token: accessToken });
+    return { id: dados.id };
+  }
+
   async listarContasDeAnuncio(accessToken: string): Promise<AtivoMeta[]> {
     const dados = await this.obter<{ data: { id: string; name: string }[] }>('/me/adaccounts', {
       fields: 'id,name',

@@ -101,6 +101,8 @@ enum TipoTokenMeta {
 model ConexaoMeta {
   id                 String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   clienteId          String        @unique @map("cliente_id") @db.Uuid
+  // ID do usuário na Meta (específico do nosso app): é como a Meta nos avisa QUEM removeu o app ou pediu exclusão.
+  metaUserId         String?       @map("meta_user_id")
   tipoToken          TipoTokenMeta @map("tipo_token")
   tokenCriptografado String        @map("token_criptografado")
   contaAnuncioId     String?       @map("conta_anuncio_id")
@@ -113,6 +115,7 @@ model ConexaoMeta {
 
   cliente Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
 
+  @@index([metaUserId])
   @@map("conexoes_meta")
 }
 
