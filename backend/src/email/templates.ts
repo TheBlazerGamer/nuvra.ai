@@ -9,16 +9,26 @@ const escapar = (texto: string) =>
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 
+// A logo precisa ser um endereço público (o programa de e-mail do cliente baixa a imagem da internet),
+// por isso aponta sempre para o site publicado, inclusive nos e-mails gerados em desenvolvimento.
+const LOGO_URL = 'https://gestor.gruponuvra.com.br/brand/lockup-paper.png';
+
+// Os programas de e-mail transformam "Nuvra.AI" em link azul (.ai parece um site). O espaço de largura
+// zero depois do ponto quebra esse reconhecimento sem mudar nada visível.
+const MARCA = 'Nuvra.&#8203;AI';
+
 function moldura(titulo: string, paragrafos: string[], botao?: { texto: string; url: string }): string {
-  const corpo = paragrafos.map((p) => `<p style="margin:0 0 14px;line-height:1.55">${p}</p>`).join('');
+  const corpo = paragrafos
+    .map((p) => `<p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:#1b2540">${p}</p>`)
+    .join('');
   const acao = botao
-    ? `<p style="margin:22px 0"><a href="${escapar(botao.url)}" style="background:#1747E9;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:600;display:inline-block">${escapar(botao.texto)}</a></p>`
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:28px 0 8px"><tr><td style="background:#1747E9;border-radius:8px"><a href="${escapar(botao.url)}" style="display:inline-block;padding:14px 28px;font-size:16px;font-weight:700;color:#ffffff;text-decoration:none">${escapar(botao.texto)}</a></td></tr></table>`
     : '';
-  return `<!doctype html><html lang="pt-BR"><body style="margin:0;background:#E5E5E5;padding:24px;font-family:Arial,Helvetica,sans-serif;color:#010C28">
-<div style="max-width:520px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden">
-<div style="background:#010C28;color:#ffffff;padding:18px 24px;font-weight:700;letter-spacing:.5px">NUVRA.AI</div>
-<div style="padding:24px"><h1 style="font-size:20px;margin:0 0 16px">${escapar(titulo)}</h1>${corpo}${acao}</div>
-<div style="padding:14px 24px;font-size:12px;color:#666E82;border-top:1px solid #E5E5E5">Se você não reconhece esta mensagem, pode ignorá-la com segurança.</div>
+  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#E5E5E5;padding:24px 12px;font-family:Arial,Helvetica,sans-serif;color:#010C28">
+<div style="max-width:540px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden">
+<div style="background:#010C28;padding:26px 28px"><img src="${LOGO_URL}" width="150" alt="Nuvra" style="display:block;width:150px;max-width:100%;height:auto;border:0;color:#ffffff;font-size:20px;font-weight:700"></div>
+<div style="padding:32px 28px 24px"><h1 style="font-size:24px;line-height:1.3;margin:0 0 20px;color:#010C28">${escapar(titulo)}</h1>${corpo}${acao}</div>
+<div style="padding:18px 28px;font-size:12px;line-height:1.5;color:#666E82;border-top:1px solid #E5E5E5">Se você não reconhece esta mensagem, pode ignorá-la com segurança.<br>NUVRA LTDA · Linhares/ES</div>
 </div></body></html>`;
 }
 
@@ -40,7 +50,7 @@ export function emailContaExistente(urlEntrar: string, urlRecuperar: string): Co
     texto: `Alguém (talvez você) tentou criar uma conta na Nuvra.AI com este e-mail, mas ele já está cadastrado.\n\nSe foi você, entre na sua conta: ${urlEntrar}\nSe esqueceu a senha, redefina aqui: ${urlRecuperar}\n\nSe não foi você, nenhuma ação é necessária: sua conta continua segura.`,
     html: moldura(
       'Você já tem uma conta',
-      ['Alguém (talvez você) tentou criar uma conta na Nuvra.AI com este e-mail, mas ele já está cadastrado.', `Se esqueceu a senha, <a href="${escapar(urlRecuperar)}">redefina aqui</a>. Se não foi você, nenhuma ação é necessária: sua conta continua segura.`],
+      [`Alguém (talvez você) tentou criar uma conta na ${MARCA} com este e-mail, mas ele já está cadastrado.`, `Se esqueceu a senha, <a href="${escapar(urlRecuperar)}">redefina aqui</a>. Se não foi você, nenhuma ação é necessária: sua conta continua segura.`],
       { texto: 'Entrar na minha conta', url: urlEntrar },
     ),
   };

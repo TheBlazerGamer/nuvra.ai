@@ -64,7 +64,8 @@ services:
       EMAIL_TRANSPORT: smtp
       EMAIL_FROM: ${EMAIL_FROM}
       SMTP_HOST: smtp-relay.brevo.com
-      SMTP_PORT: "587"
+      # 2525 e não 587: a DigitalOcean bloqueia as portas 25/465/587 de saída; o Brevo também aceita 2525.
+      SMTP_PORT: "2525"
       SMTP_USER: ${SMTP_USER}
       SMTP_PASS: ${SMTP_PASS}
     deploy:
