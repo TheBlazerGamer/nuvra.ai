@@ -50,7 +50,6 @@ export default function PaginaPrivacidade() {
             "Meta Platforms (Facebook e Instagram): para criar e gerenciar os seus anúncios e ler resultados, sempre com a sua autorização.",
             "Provedores de infraestrutura e hospedagem (DigitalOcean).",
             "Anthropic (inteligência artificial): processa criativos, textos e transcrições para gerar análises e propostas.",
-            `Transcrição de áudio: ${EMPRESA.provedorTranscricao}.`,
             "Envio de e-mails (Brevo): confirmação de conta, recuperação de senha e avisos de segurança.",
             "Telegram (e, no futuro, WhatsApp/Meta): canal de conversa com você.",
             "Autoridades, quando houver obrigação legal ou ordem judicial.",
