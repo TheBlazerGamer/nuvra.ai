@@ -21,7 +21,9 @@ let aguardarTarefas: () => Promise<void>;
 
 // Controla o que o dublê da Graph API devolve em cada teste.
 let contasFake: AtivoMeta[] = [{ id: 'act_1', nome: 'Conta Única' }];
-let paginasFake: AtivoMeta[] = [{ id: 'pg_1', nome: 'Página Única' }];
+let paginasFake: AtivoMeta[] = [{ id: '1001', nome: 'Página Única' }]; // Páginas que podem anunciar pela conta
+let paginasDoUsuarioFake: AtivoMeta[] = []; // Páginas que o usuário administra diretamente
+let autorizadasFake: Set<string> | null = null; // contas liberadas na tela da Meta (null = Meta não informa restrição)
 let usuarioMetaFake = 'meta_user_0';
 let sequenciaUsuario = 0;
 const chamadasGraph: string[] = [];
@@ -119,8 +121,16 @@ beforeAll(async () => {
       chamadasGraph.push('listarContas');
       return contasFake;
     },
+    contasAutorizadas: async () => {
+      chamadasGraph.push('contasAutorizadas');
+      return autorizadasFake;
+    },
     listarPaginas: async (): Promise<AtivoMeta[]> => {
       chamadasGraph.push('listarPaginas');
+      return paginasDoUsuarioFake;
+    },
+    listarPaginasDaConta: async (_token: string, contaId: string): Promise<AtivoMeta[]> => {
+      chamadasGraph.push(`listarPaginasDaConta:${contaId}`);
       return paginasFake;
     },
   };
@@ -147,7 +157,9 @@ afterAll(async () => {
 
 beforeEach(() => {
   contasFake = [{ id: 'act_1', nome: 'Conta Única' }];
-  paginasFake = [{ id: 'pg_1', nome: 'Página Única' }];
+  paginasFake = [{ id: '1001', nome: 'Página Única' }];
+  paginasDoUsuarioFake = [];
+  autorizadasFake = null;
   chamadasGraph.length = 0;
   usuarioMetaFake = `meta_user_${++sequenciaUsuario}`;
 });
@@ -179,7 +191,7 @@ describe('login com a Meta', () => {
     expect(chamadasGraph).toHaveLength(0);
   });
 
-  it('com uma única conta de anúncio, conecta e já seleciona automaticamente', async () => {
+  it('com uma única conta de anúncio e uma única Página, conecta e já seleciona as duas', async () => {
     const cookie = await novaContaComSessao();
     const { callback } = await conectarESimularVolta(cookie);
 
@@ -192,13 +204,50 @@ describe('login com a Meta', () => {
       tipoToken: 'USUARIO',
       contaAnuncioId: 'act_1',
       contaAnuncioNome: 'Conta Única',
-      paginaId: 'pg_1',
+      paginaId: '1001',
       paginaNome: 'Página Única',
     });
     expect(JSON.stringify(status.body)).not.toMatch(/longo-fake|curto-fake|token_criptografado/i);
   });
 
-  it('com mais de uma conta, conecta mas deixa o cliente escolher depois', async () => {
+  it('com uma conta e várias Páginas, escolhe a conta mas NÃO adivinha a Página', async () => {
+    paginasFake = [
+      { id: '1001', nome: 'Página A' },
+      { id: '1002', nome: 'Página B' },
+    ];
+    const cookie = await novaContaComSessao();
+    const { callback } = await conectarESimularVolta(cookie);
+    await callback().expect(302);
+
+    const status = await get('/meta/status', cookie).expect(200);
+    expect(status.body.contaAnuncioId).toBe('act_1');
+    expect(status.body.paginaId).toBeNull();
+  });
+
+  it('só mostra e só usa as contas que o cliente liberou na tela da Meta (mesmo que o perfil enxergue mais)', async () => {
+    contasFake = [
+      { id: 'act_1', nome: 'Conta de outro cliente da agência' },
+      { id: 'act_2', nome: 'Conta da Nuvra' },
+      { id: 'act_3', nome: 'Outra conta da agência' },
+    ];
+    autorizadasFake = new Set(['act_2']);
+    const cookie = await novaContaComSessao();
+    const { callback } = await conectarESimularVolta(cookie);
+    await callback().expect(302);
+
+    // só uma foi liberada, então já vem escolhida
+    expect((await get('/meta/status', cookie).expect(200)).body.contaAnuncioId).toBe('act_2');
+    expect((await get('/meta/ativos', cookie).expect(200)).body.contas).toEqual([
+      { id: 'act_2', nome: 'Conta da Nuvra' },
+    ]);
+
+    // tentar escolher uma conta que não foi liberada é recusado e nada muda
+    await post('/meta/selecionar', { contaAnuncioId: 'act_1' }, cookie).expect(400);
+    await get('/meta/paginas?conta=act_1', cookie).expect(400);
+    expect((await get('/meta/status', cookie).expect(200)).body.contaAnuncioId).toBe('act_2');
+  });
+
+  it('com mais de uma conta, conecta mas deixa o cliente escolher conta e Página depois', async () => {
     contasFake = [
       { id: 'act_1', nome: 'Conta 1' },
       { id: 'act_2', nome: 'Conta 2' },
@@ -211,17 +260,62 @@ describe('login com a Meta', () => {
     expect(statusAntes.body.contaAnuncioId).toBeNull();
 
     const ativos = await get('/meta/ativos', cookie).expect(200);
-    expect(ativos.body.contas).toEqual(contasFake);
+    expect(ativos.body).toEqual({ contas: contasFake });
 
+    // sem o ID da conta, ou com um ID fora do formato, a API recusa
     await post('/meta/selecionar', { contaAnuancioId: 'ignorado' }, cookie).expect(400);
-    await post(
-      '/meta/selecionar',
-      { contaAnuncioId: 'act_2', contaAnuncioNome: 'Conta 2', paginaId: 'pg_1', paginaNome: 'Página Única' },
-      cookie,
-    ).expect(204);
+    await post('/meta/selecionar', { contaAnuncioId: '../../me/accounts' }, cookie).expect(400);
 
+    await post('/meta/selecionar', { contaAnuncioId: 'act_2', paginaId: '1001' }, cookie).expect(204);
+
+    // nomes vêm da Meta, não do navegador
     const statusDepois = await get('/meta/status', cookie).expect(200);
-    expect(statusDepois.body.contaAnuncioId).toBe('act_2');
+    expect(statusDepois.body).toMatchObject({
+      contaAnuncioId: 'act_2',
+      contaAnuncioNome: 'Conta 2',
+      paginaId: '1001',
+      paginaNome: 'Página Única',
+    });
+  });
+
+  it('lista as Páginas da conta escolhida (sem repetir) e recusa Página que a conta não pode usar', async () => {
+    contasFake = [
+      { id: 'act_1', nome: 'Conta 1' },
+      { id: 'act_2', nome: 'Conta 2' },
+    ];
+    paginasFake = [{ id: '1001', nome: 'Página A' }];
+    paginasDoUsuarioFake = [
+      { id: '1001', nome: 'Página A' },
+      { id: '1002', nome: 'Página B' },
+    ];
+    const cookie = await novaContaComSessao();
+    const { callback } = await conectarESimularVolta(cookie);
+    await callback().expect(302);
+
+    const paginas = await get('/meta/paginas?conta=act_1', cookie).expect(200);
+    expect(paginas.body.paginas).toEqual([
+      { id: '1001', nome: 'Página A' },
+      { id: '1002', nome: 'Página B' },
+    ]);
+    expect(chamadasGraph).toContain('listarPaginasDaConta:act_1');
+
+    await get('/meta/paginas', cookie).expect(400);
+    await get('/meta/paginas?conta=lixo', cookie).expect(400);
+
+    await post('/meta/selecionar', { contaAnuncioId: 'act_1', paginaId: '9999' }, cookie).expect(400);
+    expect((await get('/meta/status', cookie).expect(200)).body.contaAnuncioId).toBeNull();
+  });
+
+  it('trocar para uma conta sem Página apaga a Página antiga (não deixa a anterior para trás)', async () => {
+    const cookie = await novaContaComSessao();
+    const { callback } = await conectarESimularVolta(cookie);
+    await callback().expect(302);
+    expect((await get('/meta/status', cookie).expect(200)).body.paginaId).toBe('1001');
+
+    await post('/meta/selecionar', { contaAnuncioId: 'act_1' }, cookie).expect(204);
+    const status = await get('/meta/status', cookie).expect(200);
+    expect(status.body.paginaId).toBeNull();
+    expect(status.body.paginaNome).toBeNull();
   });
 
   it('reenviar o mesmo callback (state já usado) na segunda vez dá erro', async () => {

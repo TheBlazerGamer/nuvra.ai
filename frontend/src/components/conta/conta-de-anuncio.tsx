@@ -23,11 +23,6 @@ interface Ativo {
   nome: string;
 }
 
-interface Ativos {
-  contas: Ativo[];
-  paginas: Ativo[];
-}
-
 // Ao voltar da Meta, o backend nos redireciona para /conta?meta=conectado ou ?meta=erro.
 function lerResultadoMeta(): "conectado" | "erro" | null {
   if (typeof window === "undefined") return null;
@@ -40,7 +35,9 @@ export function ContaDeAnuncio({ emailVerificado }: { emailVerificado: boolean }
   const [status, setStatus] = useState<StatusMeta | null | undefined>(undefined);
   const [resultado] = useState(lerResultadoMeta);
   const [escolhendo, setEscolhendo] = useState(false);
-  const [ativos, setAtivos] = useState<Ativos | null>(null);
+  const [contas, setContas] = useState<Ativo[] | null>(null);
+  // Páginas de cada conta de anúncio, buscadas sob demanda (undefined = ainda carregando).
+  const [paginasPorConta, setPaginasPorConta] = useState<Record<string, Ativo[]>>({});
   const [contaEscolhida, setContaEscolhida] = useState("");
   const [paginaEscolhida, setPaginaEscolhida] = useState("");
   const [ocupado, setOcupado] = useState(false);
@@ -50,6 +47,14 @@ export function ContaDeAnuncio({ emailVerificado }: { emailVerificado: boolean }
 
   const precisaEscolher = !!status && !status.contaAnuncioId;
   const mostrarEscolha = !!status && (escolhendo || precisaEscolher);
+
+  const paginas = contaEscolhida ? paginasPorConta[contaEscolhida] : undefined;
+  // Se a Página marcada não existe nesta conta, vale a única disponível (ou nenhuma).
+  const paginaValida = paginas?.some((p) => p.id === paginaEscolhida)
+    ? paginaEscolhida
+    : paginas?.length === 1
+      ? paginas[0].id
+      : "";
 
   useEffect(() => {
     if (resultado) window.history.replaceState(null, "", window.location.pathname);
@@ -70,14 +75,14 @@ export function ContaDeAnuncio({ emailVerificado }: { emailVerificado: boolean }
   }, []);
 
   useEffect(() => {
-    if (!mostrarEscolha || ativos) return;
+    if (!mostrarEscolha || contas) return;
     let cancelado = false;
-    apiFetch<Ativos>("/meta/ativos")
+    apiFetch<{ contas: Ativo[] }>("/meta/ativos")
       .then((a) => {
         if (cancelado) return;
-        setAtivos(a);
+        setContas(a.contas);
         setContaEscolhida(status?.contaAnuncioId ?? (a.contas.length === 1 ? a.contas[0].id : ""));
-        setPaginaEscolhida(status?.paginaId ?? a.paginas[0]?.id ?? "");
+        setPaginaEscolhida(status?.paginaId ?? "");
       })
       .catch((e) => {
         if (!cancelado) setErro(e instanceof ApiError ? e.message : "Não foi possível carregar suas contas.");
@@ -85,7 +90,23 @@ export function ContaDeAnuncio({ emailVerificado }: { emailVerificado: boolean }
     return () => {
       cancelado = true;
     };
-  }, [mostrarEscolha, ativos, status, tentativa]);
+  }, [mostrarEscolha, contas, status, tentativa]);
+
+  useEffect(() => {
+    if (!mostrarEscolha || !contaEscolhida || paginasPorConta[contaEscolhida]) return;
+    let cancelado = false;
+    apiFetch<{ paginas: Ativo[] }>(`/meta/paginas?conta=${encodeURIComponent(contaEscolhida)}`)
+      .then((r) => {
+        if (!cancelado) setPaginasPorConta((atual) => ({ ...atual, [contaEscolhida]: r.paginas }));
+      })
+      .catch(() => {
+        // Sem a lista, deixa escolher a conta sem Página (dá para escolher a Página depois).
+        if (!cancelado) setPaginasPorConta((atual) => ({ ...atual, [contaEscolhida]: [] }));
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, [mostrarEscolha, contaEscolhida, paginasPorConta]);
 
   // Navegação completa (não é rota do Next): o backend redireciona o navegador para a tela de login da Meta.
   function conectar() {
@@ -93,20 +114,15 @@ export function ContaDeAnuncio({ emailVerificado }: { emailVerificado: boolean }
   }
 
   async function salvarEscolha() {
-    const conta = ativos?.contas.find((c) => c.id === contaEscolhida);
-    if (!conta) return;
-    const pagina = ativos?.paginas.find((p) => p.id === paginaEscolhida);
+    if (!contaEscolhida) return;
 
     setErro(null);
     setOcupado(true);
     try {
+      // Só os IDs: o servidor confere com a Meta e grava os nomes.
       await apiFetch("/meta/selecionar", {
         method: "POST",
-        body: {
-          contaAnuncioId: conta.id,
-          contaAnuncioNome: conta.nome,
-          ...(pagina ? { paginaId: pagina.id, paginaNome: pagina.nome } : {}),
-        },
+        body: { contaAnuncioId: contaEscolhida, ...(paginaValida ? { paginaId: paginaValida } : {}) },
       });
       setStatus(await apiFetch<StatusMeta | null>("/meta/status"));
       setEscolhendo(false);
@@ -123,7 +139,10 @@ export function ContaDeAnuncio({ emailVerificado }: { emailVerificado: boolean }
     try {
       await apiFetch("/meta/conexao", { method: "DELETE" });
       setStatus(null);
-      setAtivos(null);
+      setContas(null);
+      setPaginasPorConta({});
+      setContaEscolhida("");
+      setPaginaEscolhida("");
       setEscolhendo(false);
       setConfirmandoDesconexao(false);
     } catch (e) {
@@ -137,6 +156,7 @@ export function ContaDeAnuncio({ emailVerificado }: { emailVerificado: boolean }
     if (status === undefined) return null;
     if (!status) return <Badge>Não conectada</Badge>;
     if (precisaEscolher) return <Badge tone="warning">Falta escolher a conta</Badge>;
+    if (!status.paginaId) return <Badge tone="warning">Falta escolher a Página</Badge>;
     return <Badge tone="success">Conectada</Badge>;
   }
 
@@ -187,7 +207,17 @@ export function ContaDeAnuncio({ emailVerificado }: { emailVerificado: boolean }
               </div>
             )}
           </dl>
+          {!status.paginaId && (
+            <p className="text-sm text-fg-muted">
+              Escolha a Página do Facebook que vai aparecer nos seus anúncios: a Meta exige uma Página em todo anúncio.
+            </p>
+          )}
           <div className="flex flex-wrap items-center gap-2">
+            {!status.paginaId && (
+              <Button size="sm" onClick={() => setEscolhendo(true)}>
+                Escolher Página
+              </Button>
+            )}
             <Button size="sm" variant="secondary" onClick={() => setEscolhendo(true)}>
               Trocar conta
             </Button>
@@ -212,52 +242,65 @@ export function ContaDeAnuncio({ emailVerificado }: { emailVerificado: boolean }
 
       {mostrarEscolha && (
         <div className="flex flex-col gap-4">
-          {!ativos && !erro && <Spinner className="text-fg-muted" />}
+          {!contas && !erro && <Spinner className="text-fg-muted" />}
 
-          {ativos && ativos.contas.length === 0 && (
-            <Alert tone="warning" title="Nenhuma conta de anúncio encontrada">
-              Não achamos contas de anúncio nesse perfil do Facebook. Reconecte escolhendo outro perfil, ou desconecte.
+          {contas && contas.length === 0 && (
+            <Alert tone="warning" title="Nenhuma conta de anúncio liberada">
+              Você não liberou nenhuma conta de anúncio na tela do Facebook. Reconecte e marque a conta que a Nuvra deve usar.
             </Alert>
           )}
 
-          {ativos && ativos.contas.length > 0 && (
+          {contas && contas.length > 0 && (
             <fieldset className="flex flex-col gap-2">
               <legend className="mb-1 text-sm font-medium text-fg">Qual conta de anúncio a Nuvra deve usar?</legend>
-              {ativos.contas.map((c) => (
-                <ChoiceCard
-                  key={c.id}
-                  name="conta-anuncio"
-                  title={c.nome}
-                  description={c.id}
-                  checked={contaEscolhida === c.id}
-                  onChange={() => setContaEscolhida(c.id)}
-                />
-              ))}
+              <div className="flex max-h-96 flex-col gap-2 overflow-y-auto pr-1">
+                {contas.map((c) => (
+                  <ChoiceCard
+                    key={c.id}
+                    name="conta-anuncio"
+                    title={c.nome}
+                    description={c.id}
+                    checked={contaEscolhida === c.id}
+                    onChange={() => setContaEscolhida(c.id)}
+                  />
+                ))}
+              </div>
             </fieldset>
           )}
 
-          {ativos && ativos.contas.length > 0 && ativos.paginas.length > 0 && (
+          {contaEscolhida && paginas === undefined && <Spinner className="text-fg-muted" />}
+
+          {contaEscolhida && paginas && paginas.length === 0 && (
+            <Alert tone="info">
+              Não encontramos Páginas do Facebook disponíveis para anunciar com esta conta. Você pode salvar assim e
+              escolher a Página depois.
+            </Alert>
+          )}
+
+          {contaEscolhida && paginas && paginas.length > 0 && (
             <fieldset className="flex flex-col gap-2">
-              <legend className="mb-1 text-sm font-medium text-fg">E qual Página do Facebook?</legend>
-              {ativos.paginas.map((p) => (
-                <ChoiceCard
-                  key={p.id}
-                  name="pagina-facebook"
-                  title={p.nome}
-                  checked={paginaEscolhida === p.id}
-                  onChange={() => setPaginaEscolhida(p.id)}
-                />
-              ))}
+              <legend className="mb-1 text-sm font-medium text-fg">Qual Página do Facebook vai nos anúncios?</legend>
+              <div className="flex max-h-72 flex-col gap-2 overflow-y-auto pr-1">
+                {paginas.map((p) => (
+                  <ChoiceCard
+                    key={p.id}
+                    name="pagina-facebook"
+                    title={p.nome}
+                    checked={paginaValida === p.id}
+                    onChange={() => setPaginaEscolhida(p.id)}
+                  />
+                ))}
+              </div>
             </fieldset>
           )}
 
           <div className="flex flex-wrap gap-2">
-            {ativos && ativos.contas.length > 0 && (
-              <Button size="sm" loading={ocupado} disabled={!contaEscolhida} onClick={salvarEscolha}>
+            {contas && contas.length > 0 && (
+              <Button size="sm" loading={ocupado} disabled={!contaEscolhida || paginas === undefined} onClick={salvarEscolha}>
                 Salvar escolha
               </Button>
             )}
-            {!ativos && erro && (
+            {!contas && erro && (
               <Button
                 size="sm"
                 variant="secondary"
@@ -269,7 +312,7 @@ export function ContaDeAnuncio({ emailVerificado }: { emailVerificado: boolean }
                 Tentar de novo
               </Button>
             )}
-            {((ativos && ativos.contas.length === 0) || (!ativos && erro)) && (
+            {((contas && contas.length === 0) || (!contas && erro)) && (
               <Button size="sm" variant="secondary" onClick={conectar}>
                 Reconectar
               </Button>

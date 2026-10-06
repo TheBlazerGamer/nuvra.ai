@@ -1,21 +1,11 @@
-import { IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsOptional, Matches } from 'class-validator';
 
+// Só IDs: os nomes e a validade de cada escolha são conferidos no servidor, direto na Meta.
 export class SelecionarAtivosDto {
-  @IsString()
-  @MaxLength(100)
+  @Matches(/^act_\d+$/, { message: 'Conta de anúncio inválida.' })
   contaAnuncioId: string;
 
-  @IsString()
-  @MaxLength(200)
-  contaAnuncioNome: string;
-
   @IsOptional()
-  @IsString()
-  @MaxLength(100)
+  @Matches(/^\d+$/, { message: 'Página inválida.' })
   paginaId?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(200)
-  paginaNome?: string;
 }

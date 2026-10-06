@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -7,6 +8,7 @@ import {
   Logger,
   NotFoundException,
   Post,
+  Query,
   Req,
   Res,
   UseGuards,
@@ -19,7 +21,7 @@ import { EmailVerificadoGuard } from '../auth/email-verificado.guard.js';
 import { SessaoGuard } from '../auth/sessao.guard.js';
 import { SelecionarAtivosDto } from './dto/selecionar-ativos.dto.js';
 import { MetaConexaoService } from './meta-conexao.service.js';
-import { MetaGraphService } from './meta-graph.service.js';
+import { MetaGraphService, type AtivoMeta } from './meta-graph.service.js';
 import { MetaOAuthEstadoService } from './meta-oauth-estado.service.js';
 
 const ESCOPO_PADRAO = 'ads_management,ads_read,pages_show_list,pages_read_engagement';
@@ -38,6 +40,32 @@ export class MetaController {
 
   private redirectUri(): string {
     return `${this.config.getOrThrow<string>('API_ORIGIN')}/meta/callback`;
+  }
+
+  // Só as contas que o cliente liberou na tela da Meta ("todas" ou "só algumas"): o perfil dele pode enxergar mais
+  // (ex.: uma agência com dezenas de contas), mas a Nuvra só mostra e só usa o que foi autorizado.
+  private async contasDoCliente(token: string): Promise<AtivoMeta[]> {
+    const [contas, autorizadas] = await Promise.all([
+      this.graph.listarContasDeAnuncio(token),
+      this.graph.contasAutorizadas(token),
+    ]);
+    return autorizadas ? contas.filter((c) => autorizadas.has(c.id)) : contas;
+  }
+
+  // Páginas que podem anunciar por esta conta (inclui as do portfólio empresarial) mais as que o usuário administra.
+  private async paginasDaConta(token: string, contaId: string): Promise<AtivoMeta[]> {
+    const [daConta, doUsuario] = await Promise.all([
+      this.graph.listarPaginasDaConta(token, contaId).catch(() => [] as AtivoMeta[]),
+      this.graph.listarPaginas(token).catch(() => [] as AtivoMeta[]),
+    ]);
+    const vistos = new Set<string>();
+    return [...daConta, ...doUsuario].filter((p) => !vistos.has(p.id) && vistos.add(p.id));
+  }
+
+  private async tokenOuErro(clienteId: string): Promise<string> {
+    const token = await this.conexoes.obterTokenDecifrado(clienteId);
+    if (!token) throw new NotFoundException('Conecte sua conta da Meta primeiro.');
+    return token;
   }
 
   @Get('conectar')
@@ -85,10 +113,12 @@ export class MetaController {
       const usuario = await this.graph.obterUsuario(longo.accessToken);
       await this.conexoes.salvar(clienteId, 'USUARIO', longo, usuario.id);
 
-      const contas = await this.graph.listarContasDeAnuncio(longo.accessToken);
+      // Se só há uma conta liberada, já a escolhe. A Página só é escolhida sozinha quando também é única:
+      // com várias, adivinhar poderia anunciar pela Página errada.
+      const contas = await this.contasDoCliente(longo.accessToken);
       if (contas.length === 1) {
-        const paginas = await this.graph.listarPaginas(longo.accessToken).catch(() => []);
-        await this.conexoes.definirAtivos(clienteId, contas[0], paginas[0] ?? null);
+        const paginas = await this.paginasDaConta(longo.accessToken, contas[0].id);
+        await this.conexoes.definirAtivos(clienteId, contas[0], paginas.length === 1 ? paginas[0] : null);
       }
 
       await this.auditoria.registrar('meta_conectado', { clienteId, detalhes: { contas: contas.length } });
@@ -109,25 +139,38 @@ export class MetaController {
   @Get('ativos')
   @UseGuards(SessaoGuard, EmailVerificadoGuard)
   async ativos(@ClienteAtual() clienteId: string) {
-    const token = await this.conexoes.obterTokenDecifrado(clienteId);
-    if (!token) throw new NotFoundException('Conecte sua conta da Meta primeiro.');
-
-    const [contas, paginas] = await Promise.all([
-      this.graph.listarContasDeAnuncio(token),
-      this.graph.listarPaginas(token).catch(() => []),
-    ]);
-    return { contas, paginas };
+    return { contas: await this.contasDoCliente(await this.tokenOuErro(clienteId)) };
   }
 
+  // As Páginas dependem da conta escolhida (cada conta de anúncio pode anunciar por Páginas diferentes).
+  @Get('paginas')
+  @UseGuards(SessaoGuard, EmailVerificadoGuard)
+  async paginas(@ClienteAtual() clienteId: string, @Query('conta') conta: string) {
+    const token = await this.tokenOuErro(clienteId);
+    if (!(await this.contasDoCliente(token)).some((c) => c.id === conta)) {
+      throw new BadRequestException('Conta de anúncio inválida.');
+    }
+    return { paginas: await this.paginasDaConta(token, conta) };
+  }
+
+  // O navegador manda só os IDs; nomes e validade vêm da Meta (o cliente não consegue gravar uma conta ou Página
+  // que a Meta não liberou para ele).
   @Post('selecionar')
   @HttpCode(204)
   @UseGuards(SessaoGuard, EmailVerificadoGuard)
   async selecionar(@ClienteAtual() clienteId: string, @Body() dto: SelecionarAtivosDto): Promise<void> {
-    await this.conexoes.definirAtivos(
-      clienteId,
-      { id: dto.contaAnuncioId, nome: dto.contaAnuncioNome },
-      dto.paginaId && dto.paginaNome ? { id: dto.paginaId, nome: dto.paginaNome } : null,
-    );
+    const token = await this.tokenOuErro(clienteId);
+
+    const conta = (await this.contasDoCliente(token)).find((c) => c.id === dto.contaAnuncioId);
+    if (!conta) throw new BadRequestException('Conta de anúncio inválida.');
+
+    let pagina: AtivoMeta | null = null;
+    if (dto.paginaId) {
+      pagina = (await this.paginasDaConta(token, conta.id)).find((p) => p.id === dto.paginaId) ?? null;
+      if (!pagina) throw new BadRequestException('Página inválida para esta conta de anúncio.');
+    }
+
+    await this.conexoes.definirAtivos(clienteId, conta, pagina);
     await this.auditoria.registrar('meta_ativos_selecionados', { clienteId });
   }
 

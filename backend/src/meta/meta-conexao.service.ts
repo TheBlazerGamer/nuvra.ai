@@ -37,8 +37,8 @@ export class MetaConexaoService {
       data: {
         contaAnuncioId: contaAnuncio.id,
         contaAnuncioNome: contaAnuncio.nome,
-        paginaId: pagina?.id,
-        paginaNome: pagina?.nome,
+        paginaId: pagina?.id ?? null,
+        paginaNome: pagina?.nome ?? null,
       },
       select: { id: true },
     });

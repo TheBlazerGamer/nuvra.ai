@@ -216,7 +216,7 @@ function Telegram({
 
       {conectado ? (
         <>
-          <p className="text-sm text-fg-muted">É por lá que você envia criativos e acompanha suas campanhas.</p>
+          <p className="text-sm text-fg-muted">É por lá que você envia o conteúdo do anúncio e sobe suas campanhas.</p>
           <Button variant="ghost" size="sm" loading={carregando} onClick={desconectar} className="self-start">
             Desconectar
           </Button>
@@ -225,7 +225,7 @@ function Telegram({
         <>
           <p className="text-sm text-fg-muted">
             {emailVerificado
-              ? "Conecte sua conta para enviar criativos e receber relatórios pelo Telegram."
+              ? "Conecte sua conta para enviar o conteúdo do anúncio e receber relatórios pelo Telegram."
               : "Confirme seu e-mail para poder conectar o Telegram."}
           </p>
           {aguardando && <p className="text-sm text-fg-subtle">Aguardando você confirmar no Telegram…</p>}
