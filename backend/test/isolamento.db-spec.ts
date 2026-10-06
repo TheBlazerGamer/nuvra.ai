@@ -264,6 +264,46 @@ describe('isolamento entre clientes (Row Level Security)', () => {
     ).rejects.toThrow(/permission denied/i);
   });
 
+  it('cada cliente lê e grava só a própria preparação de conta (respostas do assistente)', async () => {
+    await tenant.comTenant(clienteA.id, (tx) =>
+      tx.preparacaoConta.upsert({
+        where: { clienteId: clienteA.id },
+        create: { clienteId: clienteA.id, temContaAnuncio: 'NAO', confirmacoes: ['pagina'] },
+        update: { temContaAnuncio: 'NAO', confirmacoes: ['pagina'] },
+        select: { id: true },
+      }),
+    );
+
+    const deA = await tenant.comTenant(clienteA.id, (tx) =>
+      tx.preparacaoConta.findUnique({ where: { clienteId: clienteA.id } }),
+    );
+    expect(deA?.confirmacoes).toEqual(['pagina']);
+
+    // B não enxerga a linha de A
+    expect(
+      await tenant.comTenant(clienteB.id, (tx) => tx.preparacaoConta.findUnique({ where: { clienteId: clienteA.id } })),
+    ).toBeNull();
+
+    // B não consegue gravar uma linha em nome de A, nem alterar a de A
+    await expect(
+      tenant.comTenant(clienteB.id, (tx) =>
+        tx.preparacaoConta.create({ data: { clienteId: clienteA.id, temContaAnuncio: 'SIM' }, select: { id: true } }),
+      ),
+    ).rejects.toThrow();
+    const alterou = await tenant.comTenant(clienteB.id, (tx) =>
+      tx.preparacaoConta.updateMany({ where: { clienteId: clienteA.id }, data: { temContaAnuncio: 'SIM' } }),
+    );
+    expect(alterou.count).toBe(0);
+    expect((await system.preparacaoConta.findUnique({ where: { clienteId: clienteA.id } }))?.temContaAnuncio).toBe('NAO');
+
+    // nem trocar o dono da própria linha (cliente_id não é editável)
+    await expect(
+      tenant.comTenant(clienteA.id, (tx) =>
+        tx.preparacaoConta.updateMany({ where: { clienteId: clienteA.id }, data: { clienteId: clienteB.id } }),
+      ),
+    ).rejects.toThrow(/permission denied/i);
+  });
+
   it('e-mail é sempre gravado em minúsculas (restrição no banco)', async () => {
     await expect(
       system.cliente.create({ data: { nome: 'X', email: 'MAIUSCULO@exemplo.com', senhaHash: 'h' } }),

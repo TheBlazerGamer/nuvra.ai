@@ -28,6 +28,7 @@ model Cliente {
   tokensVinculoCanal TokenVinculoCanal[]
   tokensEmail    TokenEmail[]
   auditoria      EventoAuditoria[]
+  preparacaoConta PreparacaoConta?
   conexaoMeta    ConexaoMeta?
   estadosOAuthMeta EstadoOAuthMeta[]
 
@@ -117,6 +118,27 @@ model ConexaoMeta {
 
   @@index([metaUserId])
   @@map("conexoes_meta")
+}
+
+enum RespostaContaAnuncio {
+  SIM
+  NAO
+  NAO_SEI
+}
+
+// Assistente de preparação da conta (Página, Instagram, conta de anúncio, pagamento...): guarda o que a PRÓPRIA
+// pessoa informa — se já tem conta de anúncio e quais etapas diz já ter feito (o app confere com a Meta quando
+// pode). É dado do cliente, então ele mesmo lê e grava o seu (RLS), sem passar pelo papel de sistema.
+model PreparacaoConta {
+  id               String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clienteId        String                @unique @map("cliente_id") @db.Uuid
+  temContaAnuncio  RespostaContaAnuncio? @map("tem_conta_anuncio")
+  confirmacoes     String[]              @default([])
+  atualizadoEm     DateTime              @updatedAt @map("atualizado_em") @db.Timestamptz(6)
+
+  cliente Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@map("preparacao_conta")
 }
 
 // CSRF do login com a Meta: o "state" que mandamos no início do OAuth e conferimos na volta.

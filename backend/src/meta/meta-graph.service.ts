@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import type { DetalhesConta } from './prontidao.js';
 
 const VERSAO_GRAPH = 'v21.0';
 const BASE = `https://graph.facebook.com/${VERSAO_GRAPH}`;
@@ -125,6 +126,32 @@ export class MetaGraphService {
       }
     }
     return null;
+  }
+
+  // Situação da conta de anúncio: se a Meta liberou, se há bloqueio e se já tem forma de pagamento cadastrada.
+  async detalhesDaConta(accessToken: string, contaId: string): Promise<DetalhesConta> {
+    if (!ID_CONTA_ANUNCIO.test(contaId)) throw new BadRequestException('Conta de anúncio inválida.');
+    const d = await this.obter<{
+      account_status: number;
+      disable_reason?: number;
+      funding_source_details?: { id?: string } | null;
+    }>(`/${contaId}`, { fields: 'account_status,disable_reason,funding_source_details', access_token: accessToken });
+    return {
+      accountStatus: d.account_status,
+      disableReason: d.disable_reason ? d.disable_reason : null,
+      temFormaDePagamento: !!d.funding_source_details,
+    };
+  }
+
+  // Perfis do Instagram que a conta de anúncio pode usar nos anúncios (os vinculados à Página).
+  async instagramDaConta(accessToken: string, contaId: string): Promise<{ usuario: string }[]> {
+    if (!ID_CONTA_ANUNCIO.test(contaId)) throw new BadRequestException('Conta de anúncio inválida.');
+    const d = await this.obter<{ data: { id: string; username?: string }[] }>(`/${contaId}/instagram_accounts`, {
+      fields: 'id,username',
+      limit: '25',
+      access_token: accessToken,
+    });
+    return d.data.map((i) => ({ usuario: i.username ?? i.id }));
   }
 
   // Páginas do próprio usuário (as que ele administra diretamente).

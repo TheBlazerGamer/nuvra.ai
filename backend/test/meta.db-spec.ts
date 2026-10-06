@@ -3,6 +3,7 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import type { AtivoMeta, TokenMeta } from '../src/meta/meta-graph.service.js';
+import type { DetalhesConta } from '../src/meta/prontidao.js';
 import type { MensagemEmail } from '../src/email/email.transport.js';
 import { iniciarBancoDeTeste } from './helpers/banco-de-teste.js';
 
@@ -23,6 +24,8 @@ let aguardarTarefas: () => Promise<void>;
 let contasFake: AtivoMeta[] = [{ id: 'act_1', nome: 'Conta Única' }];
 let paginasFake: AtivoMeta[] = [{ id: '1001', nome: 'Página Única' }]; // Páginas que podem anunciar pela conta
 let paginasDoUsuarioFake: AtivoMeta[] = []; // Páginas que o usuário administra diretamente
+let detalhesFake: DetalhesConta | Error = { accountStatus: 1, disableReason: null, temFormaDePagamento: true };
+let instagramFake: { usuario: string }[] | Error = [{ usuario: 'minhaloja' }];
 let autorizadasFake: Set<string> | null = null; // contas liberadas na tela da Meta (null = Meta não informa restrição)
 let usuarioMetaFake = 'meta_user_0';
 let sequenciaUsuario = 0;
@@ -121,6 +124,14 @@ beforeAll(async () => {
       chamadasGraph.push('listarContas');
       return contasFake;
     },
+    detalhesDaConta: async () => {
+      if (detalhesFake instanceof Error) throw detalhesFake;
+      return detalhesFake;
+    },
+    instagramDaConta: async () => {
+      if (instagramFake instanceof Error) throw instagramFake;
+      return instagramFake;
+    },
     contasAutorizadas: async () => {
       chamadasGraph.push('contasAutorizadas');
       return autorizadasFake;
@@ -160,6 +171,8 @@ beforeEach(() => {
   paginasFake = [{ id: '1001', nome: 'Página Única' }];
   paginasDoUsuarioFake = [];
   autorizadasFake = null;
+  detalhesFake = { accountStatus: 1, disableReason: null, temFormaDePagamento: true };
+  instagramFake = [{ usuario: 'minhaloja' }];
   chamadasGraph.length = 0;
   usuarioMetaFake = `meta_user_${++sequenciaUsuario}`;
 });
@@ -400,6 +413,126 @@ describe('login com a Meta', () => {
       const res = await avisoDaMeta('/meta/exclusao-dados', { signed_request: signedRequest('ninguem-conhecido') }).expect(200);
       expect(res.body.confirmation_code).toBeTruthy();
       await avisoDaMeta('/meta/desautorizacao', { signed_request: signedRequest('ninguem-conhecido') }).expect(200);
+    });
+  });
+  describe('assistente de preparação da conta', () => {
+    const lista = async (cookie: string) => (await get('/meta/prontidao', cookie).expect(200)).body;
+    const etapaDe = (corpo: { etapas: { id: string; estado: string; descricao: string; acoes: { url: string }[] }[] }, id: string) =>
+      corpo.etapas.find((e) => e.id === id)!;
+    const conectar = async () => {
+      const cookie = await novaContaComSessao();
+      const { callback } = await conectarESimularVolta(cookie);
+      await callback().expect(302);
+      return cookie;
+    };
+
+    it('exige sessão', async () => {
+      await http().get('/meta/prontidao').expect(401);
+      await http().post('/meta/prontidao/pergunta').set('Origin', ORIGEM).send({ resposta: 'SIM' }).expect(401);
+    });
+
+    it('quem não tem conta de anúncio é guiado em ordem, e cada "já fiz" avança para o próximo passo', async () => {
+      const cookie = await novaContaComSessao();
+      expect((await lista(cookie)).proxima).toBe('meta'); // ainda sem resposta: conecta primeiro
+
+      await post('/meta/prontidao/pergunta', { resposta: 'NAO' }, cookie).expect(204);
+      let corpo = await lista(cookie);
+      expect(corpo.temContaAnuncio).toBe('NAO');
+      expect(corpo.etapas.slice(0, 3).map((e: { id: string }) => e.id)).toEqual(['email', 'pagina', 'conta_anuncio']);
+      expect(corpo.proxima).toBe('pagina');
+
+      await post('/meta/prontidao/confirmar', { etapa: 'pagina' }, cookie).expect(204);
+      await post('/meta/prontidao/confirmar', { etapa: 'conta_anuncio' }, cookie).expect(204);
+      corpo = await lista(cookie);
+      expect(corpo.proxima).toBe('pagamento'); // criou a conta, vai direto para a forma de pagamento
+      expect(etapaDe(corpo, 'pagina').estado).toBe('ok');
+
+      await post('/meta/prontidao/confirmar', { etapa: 'conta_anuncio', feito: false }, cookie).expect(204);
+      expect((await lista(cookie)).proxima).toBe('conta_anuncio');
+    });
+
+    it('"já vinculei o Instagram" e "usar a identidade da Página" se excluem', async () => {
+      const cookie = await novaContaComSessao();
+      await post('/meta/prontidao/pergunta', { resposta: 'NAO' }, cookie).expect(204);
+
+      await post('/meta/prontidao/confirmar', { etapa: 'instagram' }, cookie).expect(204);
+      expect(etapaDe(await lista(cookie), 'instagram').estado).toBe('ok');
+
+      await post('/meta/prontidao/confirmar', { etapa: 'instagram_pagina' }, cookie).expect(204);
+      expect(etapaDe(await lista(cookie), 'instagram').estado).toBe('atencao');
+    });
+
+    it('recusa respostas e etapas inventadas (inclusive etapas que só a Meta pode confirmar)', async () => {
+      const cookie = await novaContaComSessao();
+      await post('/meta/prontidao/pergunta', { resposta: 'TALVEZ' }, cookie).expect(400);
+      await post('/meta/prontidao/confirmar', { etapa: 'lixo' }, cookie).expect(400);
+      await post('/meta/prontidao/confirmar', { etapa: 'meta' }, cookie).expect(400);
+      await post('/meta/prontidao/confirmar', { etapa: 'conta_ativa' }, cookie).expect(400);
+      await post('/meta/prontidao/confirmar', { etapa: 'pagina', feito: 'sim' }, cookie).expect(400);
+    });
+
+    it('o que um cliente responde não aparece no outro', async () => {
+      const a = await novaContaComSessao();
+      const b = await novaContaComSessao();
+      await post('/meta/prontidao/pergunta', { resposta: 'NAO' }, a).expect(204);
+      await post('/meta/prontidao/confirmar', { etapa: 'pagina' }, a).expect(204);
+
+      const deB = await lista(b);
+      expect(deB.temContaAnuncio).toBeNull();
+      expect(etapaDe(deB, 'pagina').estado).toBe('aguardando');
+    });
+
+    it('conectada: o app confere pagamento, situação da conta e Instagram sozinho', async () => {
+      const cookie = await conectar();
+      const corpo = await lista(cookie);
+
+      expect(corpo.conectada).toBe(true);
+      expect(etapaDe(corpo, 'pagamento').estado).toBe('ok');
+      expect(etapaDe(corpo, 'conta_ativa').estado).toBe('ok');
+      expect(etapaDe(corpo, 'instagram').descricao).toContain('@minhaloja');
+      expect(corpo.proxima).toBe('telegram'); // só falta o Telegram desta conta de teste
+      expect(corpo.prontoParaAnunciar).toBe(false);
+    });
+
+    it('conectada e sem forma de pagamento: a próxima etapa é o pagamento, com o link da conta', async () => {
+      detalhesFake = { accountStatus: 1, disableReason: null, temFormaDePagamento: false };
+      const cookie = await conectar();
+      const corpo = await lista(cookie);
+
+      expect(corpo.proxima).toBe('pagamento');
+      expect(etapaDe(corpo, 'pagamento').acoes[0].url).toContain('asset_id=1');
+    });
+
+    it('sem Instagram vinculado anuncia com a identidade da Página, e falha da Meta vira "não consegui conferir"', async () => {
+      instagramFake = [];
+      let cookie = await conectar();
+      expect(etapaDe(await lista(cookie), 'instagram').estado).toBe('atencao');
+
+      instagramFake = new Error('falha da Meta');
+      detalhesFake = new Error('falha da Meta');
+      cookie = await conectar();
+      const corpo = await lista(cookie);
+      expect(etapaDe(corpo, 'instagram').estado).toBe('desconhecido');
+      expect(etapaDe(corpo, 'pagamento').estado).toBe('desconhecido');
+      expect(etapaDe(corpo, 'conta_ativa').estado).toBe('desconhecido');
+    });
+
+    it('token guardado ilegível não derruba o assistente: as etapas viram "não consegui conferir"', async () => {
+      const cookie = await conectar();
+      const { PrismaSystemService } = await import('../src/database/prisma-system.service.js');
+      await app.get(PrismaSystemService).conexaoMeta.updateMany({ data: { tokenCriptografado: 'nao-e-um-token-cifrado' } });
+
+      const corpo = await lista(cookie);
+      expect(corpo.conectada).toBe(true);
+      expect(etapaDe(corpo, 'conta_ativa').estado).toBe('desconhecido');
+      expect(etapaDe(corpo, 'pagamento').estado).toBe('desconhecido');
+    });
+
+    it('conta bloqueada pela Meta aparece como bloqueada, com o motivo', async () => {
+      detalhesFake = { accountStatus: 2, disableReason: 3, temFormaDePagamento: true };
+      const corpo = await lista(await conectar());
+      expect(etapaDe(corpo, 'conta_ativa').estado).toBe('bloqueado');
+      expect(etapaDe(corpo, 'conta_ativa').descricao).toContain('risco no pagamento');
     });
   });
 });

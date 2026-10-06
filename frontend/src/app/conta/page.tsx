@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Logo } from "@/components/brand/logo";
+import { AssistenteDePreparacao } from "@/components/conta/assistente-de-preparacao";
 import { ContaDeAnuncio } from "@/components/conta/conta-de-anuncio";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +12,7 @@ import { Card } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { TextField } from "@/components/ui/text-field";
 import { apiFetch, ApiError } from "@/lib/api";
+import { descreverDispositivo } from "@/lib/dispositivo";
 
 interface Perfil {
   cliente: { id: string; nome: string; email: string; criadoEm: string };
@@ -30,6 +32,8 @@ export default function PaginaConta() {
   const router = useRouter();
   const [perfil, setPerfil] = useState<Perfil | null>(null);
   const [carregandoPerfil, setCarregandoPerfil] = useState(true);
+  // Sobe quando algo muda (Telegram, conta de anúncio) para o assistente conferir de novo.
+  const [versaoPreparacao, setVersaoPreparacao] = useState(0);
 
   useEffect(() => {
     let cancelado = false;
@@ -52,6 +56,7 @@ export default function PaginaConta() {
 
   function recarregarPerfil() {
     apiFetch<Perfil>("/auth/eu").then(setPerfil);
+    setVersaoPreparacao((v) => v + 1);
   }
 
   async function sair() {
@@ -85,7 +90,7 @@ export default function PaginaConta() {
           <p className="text-fg-muted">{perfil.cliente.email}</p>
         </Card>
 
-        {!perfil.emailVerificado && <VerificacaoPendente />}
+        <AssistenteDePreparacao versao={versaoPreparacao} />
 
         <Telegram
           conectado={perfil.telegramConectado}
@@ -93,42 +98,12 @@ export default function PaginaConta() {
           aoMudar={recarregarPerfil}
         />
 
-        <ContaDeAnuncio emailVerificado={perfil.emailVerificado} />
+        <ContaDeAnuncio emailVerificado={perfil.emailVerificado} aoMudar={() => setVersaoPreparacao((v) => v + 1)} />
 
         <TrocarSenha />
         <Sessoes />
       </div>
     </main>
-  );
-}
-
-function VerificacaoPendente() {
-  const [enviando, setEnviando] = useState(false);
-  const [enviado, setEnviado] = useState(false);
-
-  async function reenviar() {
-    setEnviando(true);
-    try {
-      await apiFetch("/auth/reenviar-verificacao", { method: "POST" });
-      setEnviado(true);
-    } finally {
-      setEnviando(false);
-    }
-  }
-
-  return (
-    <Alert tone="warning" title="Confirme seu e-mail">
-      <div className="flex flex-col items-start gap-2">
-        <p>Alguns recursos só ficam disponíveis depois da confirmação.</p>
-        {enviado ? (
-          <p className="text-sm">Enviamos um novo link, confira sua caixa de entrada.</p>
-        ) : (
-          <Button size="sm" variant="secondary" loading={enviando} onClick={reenviar}>
-            Reenviar e-mail de confirmação
-          </Button>
-        )}
-      </div>
-    </Alert>
   );
 }
 
@@ -208,8 +183,8 @@ function Telegram({
   }
 
   return (
-    <Card className="flex flex-col gap-3">
-      <div className="flex items-center justify-between">
+    <Card id="telegram" className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <h2 className="text-h3">Telegram</h2>
         <Badge tone={conectado ? "success" : "neutral"}>{conectado ? "Conectado" : "Não conectado"}</Badge>
       </div>
@@ -350,7 +325,7 @@ function Sessoes() {
 
   return (
     <Card className="flex flex-col gap-3">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <h2 className="text-h3">Dispositivos conectados</h2>
         {sessoes.length > 1 && (
           <Button size="sm" variant="ghost" loading={ocupado === "outras"} onClick={encerrarOutras}>
@@ -361,15 +336,15 @@ function Sessoes() {
 
       <ul className="flex flex-col divide-y divide-line">
         {sessoes.map((s) => (
-          <li key={s.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
-            <div>
-              <p className="text-fg">
-                {s.userAgent ?? "Dispositivo desconhecido"} {s.atual && <Badge tone="primary">este dispositivo</Badge>}
+          <li key={s.id} className="flex items-center justify-between gap-3 py-3 text-sm">
+            <div className="min-w-0 flex-1">
+              <p className="flex flex-wrap items-center gap-x-2 gap-y-1 font-medium text-fg" title={s.userAgent ?? undefined}>
+                {descreverDispositivo(s.userAgent)} {s.atual && <Badge tone="primary">este dispositivo</Badge>}
               </p>
               <p className="text-fg-subtle">Último uso: {new Date(s.ultimoUsoEm).toLocaleString("pt-BR")}</p>
             </div>
             {!s.atual && (
-              <Button size="sm" variant="ghost" loading={ocupado === s.id} onClick={() => encerrar(s.id)}>
+              <Button size="sm" variant="ghost" className="shrink-0" loading={ocupado === s.id} onClick={() => encerrar(s.id)}>
                 Encerrar
               </Button>
             )}

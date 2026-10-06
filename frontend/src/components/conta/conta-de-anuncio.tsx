@@ -30,7 +30,7 @@ function lerResultadoMeta(): "conectado" | "erro" | null {
   return valor === "conectado" || valor === "erro" ? valor : null;
 }
 
-export function ContaDeAnuncio({ emailVerificado }: { emailVerificado: boolean }) {
+export function ContaDeAnuncio({ emailVerificado, aoMudar }: { emailVerificado: boolean; aoMudar?: () => void }) {
   // undefined = ainda carregando; null = sem conexão.
   const [status, setStatus] = useState<StatusMeta | null | undefined>(undefined);
   const [resultado] = useState(lerResultadoMeta);
@@ -126,6 +126,7 @@ export function ContaDeAnuncio({ emailVerificado }: { emailVerificado: boolean }
       });
       setStatus(await apiFetch<StatusMeta | null>("/meta/status"));
       setEscolhendo(false);
+      aoMudar?.();
     } catch (e) {
       setErro(e instanceof ApiError ? e.message : "Não foi possível salvar sua escolha.");
     } finally {
@@ -145,6 +146,7 @@ export function ContaDeAnuncio({ emailVerificado }: { emailVerificado: boolean }
       setPaginaEscolhida("");
       setEscolhendo(false);
       setConfirmandoDesconexao(false);
+      aoMudar?.();
     } catch (e) {
       setErro(e instanceof ApiError ? e.message : "Não foi possível desconectar.");
     } finally {
@@ -161,8 +163,8 @@ export function ContaDeAnuncio({ emailVerificado }: { emailVerificado: boolean }
   }
 
   return (
-    <Card className="flex flex-col gap-3">
-      <div className="flex items-center justify-between gap-3">
+    <Card id="conta-de-anuncio" className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <h2 className="text-h3">Conta de anúncio (Facebook)</h2>
         {badge()}
       </div>
