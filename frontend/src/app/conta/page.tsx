@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Logo } from "@/components/brand/logo";
+import { ContaDeAnuncio } from "@/components/conta/conta-de-anuncio";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -91,6 +92,8 @@ export default function PaginaConta() {
           emailVerificado={perfil.emailVerificado}
           aoMudar={recarregarPerfil}
         />
+
+        <ContaDeAnuncio emailVerificado={perfil.emailVerificado} />
 
         <TrocarSenha />
         <Sessoes />

@@ -1,4 +1,4 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
 export class ApiError extends Error {
   constructor(
@@ -41,7 +41,9 @@ export async function apiFetch<T>(caminho: string, opcoes: OpcoesApi = {}): Prom
     return undefined as T;
   }
 
-  return resposta.json() as Promise<T>;
+  // Rotas que devolvem "nada" (ex.: status de uma conexão que não existe) respondem 200 com corpo vazio.
+  const texto = await resposta.text();
+  return (texto ? JSON.parse(texto) : null) as T;
 }
 
 // O link do e-mail leva o token no fragmento (#token=...), que o navegador nunca envia ao servidor —
