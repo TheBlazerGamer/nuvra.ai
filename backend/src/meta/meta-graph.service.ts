@@ -107,12 +107,24 @@ export class MetaGraphService {
   async contasAutorizadas(accessToken: string): Promise<Set<string> | null> {
     const { clientId, clientSecret } = this.credenciais();
     const dados = await this.obter<{
-      data?: { granular_scopes?: { scope: string; target_ids?: string[] }[] };
+      data?: { scopes?: string[]; granular_scopes?: { scope: string; target_ids?: string[] }[] };
     }>('/debug_token', { input_token: accessToken, access_token: `${clientId}|${clientSecret}` });
 
-    const escopo = dados.data?.granular_scopes?.find((s) => s.scope === 'ads_management' && s.target_ids?.length);
-    if (!escopo?.target_ids) return null;
-    return new Set(escopo.target_ids.map((id) => (id.startsWith('act_') ? id : `act_${id}`)));
+    const granulares = dados.data?.granular_scopes ?? [];
+    // Só nomes de permissões e quantidades (nunca token nem IDs): serve para entender o que a Meta informa.
+    this.logger.log(
+      `Permissões da conexão: concedidas=[${(dados.data?.scopes ?? []).join(',')}] ` +
+        `restritas=[${granulares.map((s) => `${s.scope}:${s.target_ids?.length ?? 0}`).join(',')}]`,
+    );
+
+    // A escolha de contas na tela da Meta vale para as permissões de anúncio; usa a primeira que tiver restrição.
+    for (const nome of ['ads_management', 'ads_read']) {
+      const escopo = granulares.find((s) => s.scope === nome && s.target_ids?.length);
+      if (escopo?.target_ids) {
+        return new Set(escopo.target_ids.map((id) => (id.startsWith('act_') ? id : `act_${id}`)));
+      }
+    }
+    return null;
   }
 
   // Páginas do próprio usuário (as que ele administra diretamente).
